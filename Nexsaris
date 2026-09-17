@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEXARIS — Algorithmic systems built, tested and monitored.</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #020617;
+    color: #e2e8f0;
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(2,6,23,0.95);
+    border-bottom: 1px solid #1e293b;
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; }
+  nav .logo { font-weight: 600; color: #f1f5f9; background: none; border: none; font-size: 16px; }
+  nav .links { display: flex; gap: 18px; }
+  nav button.link { background: none; border: none; color: #64748b; font-size: 14px; padding: 0; }
+  nav button.link.active { color: #f1f5f9; }
+  h1 { color: #f1f5f9; font-size: 32px; font-weight: 600; margin: 0 0 18px; }
+  .tag { color: #64748b; font-size: 14px; margin-bottom: 14px; }
+  .lead { color: #94a3b8; max-width: 420px; line-height: 1.6; margin-bottom: 28px; }
+  .btn { border: none; border-radius: 6px; padding: 11px 20px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-primary { background: #6366f1; color: white; }
+  .btn-outline { background: none; border: 1px solid #334155; color: #e2e8f0; }
+  .btn-green { background: #059669; color: white; }
+  .btn:disabled { background: #1e293b; color: #475569; }
+  .disclaimer { color: #475569; font-size: 12px; margin-top: 60px; border-top: 1px solid #1e293b; padding-top: 16px; }
+  .card { border: 1px solid #1e293b; border-radius: 10px; padding: 22px; margin-top: 20px; }
+  label { color: #94a3b8; font-size: 12px; display: block; margin-bottom: 6px; }
+  input, select { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 9px 10px; color: #e2e8f0; font-size: 14px; margin-bottom: 16px; }
+  .row2 { display: flex; gap: 12px; }
+  .row2 > div { flex: 1; }
+  .ind-btn { display: block; width: 100%; text-align: left; background: none; border: 1px solid #334155; color: #94a3b8; border-radius: 6px; padding: 9px 12px; font-size: 14px; margin-bottom: 8px; cursor: pointer; }
+  .ind-btn.on { border-color: #6366f1; color: #f1f5f9; background: rgba(99,102,241,0.1); }
+  .total-row { display: flex; justify-content: space-between; border-top: 1px solid #1e293b; padding-top: 16px; margin-top: 4px; margin-bottom: 12px; }
+  .order-card { border: 1px solid #1e293b; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .order-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .badge { border: 1px solid #334155; color: #94a3b8; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+  .muted { color: #64748b; font-size: 12px; }
+  .success { text-align: center; padding: 80px 20px; }
+  .success .check { color: #10b981; font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <button class="logo" onclick="setPage('home')">NEXARIS</button>
+    <div class="links" id="nav-links"></div>
+  </div>
+</nav>
+
+<div class="wrap" id="content" style="padding-top:40px; padding-bottom:60px;"></div>
+
+<script>
+const PAYPAL_ME_LINK = "https://paypal.me/jhs1982";
+const PRICE = 249;
+const ORDERS_KEY = "nexaris_orders_v1";
+const MARKETS = ["XAUUSD", "EURUSD", "BTC Futures", "US30", "GBPUSD"];
+const TIMEFRAMES = ["M15", "H1", "H4", "D1"];
+const INDICATORS = [
+  { id: "ema_cross", label: "Cruce de EMA (tendencia)" },
+  { id: "rsi", label: "RSI (sobrecompra/sobreventa)" },
+  { id: "macd", label: "MACD" },
+  { id: "bollinger", label: "Bandas de Bollinger" },
+  { id: "volume", label: "Filtro de volumen" },
+];
+const DIRECTIONS = ["Solo compra", "Solo venta", "Ambas"];
+
+let page = "home";
+let form = { customerName: "", email: "", market: MARKETS[0], timeframe: TIMEFRAMES[1], direction: DIRECTIONS[2], indicators: [], stopLoss: 3, takeProfit: 6 };
+let wentToPay = false;
+let paid = false;
+
+function loadOrders() {
+  try { return JSON.parse(localStorage.getItem(ORDERS_KEY)) || []; } catch { return []; }
+}
+function saveOrders(orders) {
+  try { localStorage.setItem(ORDERS_KEY, JSON.stringify(orders)); } catch {}
+}
+
+function setPage(p) { page = p; wentToPay = false; paid = false; render(); }
+
+function renderNav() {
+  const items = [["home","Home"],["bots","Bots"],["order","Custom Bot"],["admin","Admin"]];
+  document.getElementById("nav-links").innerHTML = items.map(([id,label]) =>
+    `<button class="link ${page===id?'active':''}" onclick="setPage('${id}')">${label}</button>`
+  ).join("");
+}
+
+function renderHome() {
+  return `
+    <div class="tag">Algorithmic systems built, tested and monitored.</div>
+    <h1>NEXARIS</h1>
+    <p class="lead">Research-driven trading systems designed to be tested, validated, delivered and continuously monitored.</p>
+    <button class="btn btn-primary" onclick="setPage('bots')">Explore Bots</button>
+    <button class="btn btn-outline" onclick="setPage('order')">Build a Custom Bot</button>
+    <p class="disclaimer">Trading involves substantial risk. Past performance and backtest results do not guarantee future results.</p>
+  `;
+}
+
+function renderBots() {
+  return `<h1 style="font-size:24px">Bots</h1><p class="lead">Catálogo de bots listos — próximamente más sistemas acá.</p>`;
+}
+
+function toggleIndicator(id) {
+  const i = form.indicators.indexOf(id);
+  if (i >= 0) form.indicators.splice(i, 1); else form.indicators.push(id);
+  render();
+}
+function updateForm(field, value) { form[field] = value; render(); }
+
+function isValid() { return form.customerName && form.email && form.indicators.length > 0; }
+
+function buildSummary() {
+  const inds = form.indicators.map(id => INDICATORS.find(i => i.id === id).label).join(", ");
+  return `Pedido NEXARIS - ${form.customerName} (${form.email}) | ${form.market} ${form.timeframe} | ${form.direction} | Indicadores: ${inds} | SL ${form.stopLoss}% / TP ${form.takeProfit}%`;
+}
+function copySummary() {
+  const text = buildSummary();
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById("copy-msg").textContent = "¡Copiado! Ahora pegalo en la nota del pago en PayPal.";
+  }).catch(() => {
+    document.getElementById("copy-msg").textContent = "No se pudo copiar solo — seleccioná y copiá el texto de arriba a mano.";
+  });
+}
+function openPayment() {
+  window.open(PAYPAL_ME_LINK + "/" + PRICE + "USD", "_blank");
+  wentToPay = true;
+  render();
+}
+function confirmPaid() {
+  const orders = loadOrders();
+  orders.unshift({ id: "ORD-" + Date.now(), ...form, status: "AWAITING_OK", createdAt: new Date().toISOString() });
+  saveOrders(orders);
+  paid = true;
+  render();
+}
+
+function renderOrder() {
+  if (paid) {
+    return `<div class="success"><div class="check">✓</div><h2 style="color:#f1f5f9">Pedido recibido</h2><p class="muted">Te avisamos apenas tu bot esté generado y listo para descargar.</p></div>`;
+  }
+  const indicatorsHtml = INDICATORS.map(ind =>
+    `<button class="ind-btn ${form.indicators.includes(ind.id)?'on':''}" onclick="toggleIndicator('${ind.id}')">${form.indicators.includes(ind.id)?'☑':'☐'} ${ind.label}</button>`
+  ).join("");
+  const marketOpts = MARKETS.map(m => `<option ${form.market===m?'selected':''}>${m}</option>`).join("");
+  const tfOpts = TIMEFRAMES.map(t => `<option ${form.timeframe===t?'selected':''}>${t}</option>`).join("");
+  const dirOpts = DIRECTIONS.map(d => `<option ${form.direction===d?'selected':''}>${d}</option>`).join("");
+
+  return `
+    <div class="card">
+      <h2 style="color:#f1f5f9;margin:0 0 4px;font-size:18px">Armá tu estrategia</h2>
+      <p class="muted" style="margin-bottom:20px">Elegí las piezas — nada de texto libre.</p>
+
+      <div class="row2">
+        <div><label>Nombre</label><input value="${form.customerName}" oninput="updateForm('customerName', this.value)" /></div>
+        <div><label>Email</label><input value="${form.email}" oninput="updateForm('email', this.value)" /></div>
+      </div>
+
+      <div class="row2">
+        <div><label>Mercado</label><select onchange="updateForm('market', this.value)">${marketOpts}</select></div>
+        <div><label>Timeframe</label><select onchange="updateForm('timeframe', this.value)">${tfOpts}</select></div>
+      </div>
+      <div><label>Dirección</label><select onchange="updateForm('direction', this.value)">${dirOpts}</select></div>
+
+      <label>Indicadores a combinar</label>
+      ${indicatorsHtml}
+
+      <div class="row2" style="margin-top:16px">
+        <div><label>Stop-loss (%)</label><input type="number" value="${form.stopLoss}" oninput="updateForm('stopLoss', this.value)" /></div>
+        <div><label>Take-profit (%)</label><input type="number" value="${form.takeProfit}" oninput="updateForm('takeProfit', this.value)" /></div>
+      </div>
+
+      <div class="total-row"><span class="muted">Total</span><strong style="color:#f1f5f9">$${PRICE} USD</strong></div>
+
+      ${isValid() ? `
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:12px;margin-bottom:12px;font-size:12px;color:#94a3b8;word-break:break-word">
+          ${buildSummary()}
+        </div>
+        <button class="btn btn-outline" style="width:100%;margin-bottom:6px" onclick="copySummary()">Copiar resumen del pedido</button>
+        <p class="muted" id="copy-msg" style="margin:0 0 16px">Copiá esto y pegalo en la nota del pago cuando pagues en PayPal.</p>
+      ` : ''}
+
+      ${!wentToPay ? `
+        <button class="btn btn-primary" style="width:100%" ${!isValid()?'disabled':''} onclick="openPayment()">Pagar con PayPal →</button>
+        ${!isValid() ? '<p class="muted" style="margin-top:8px">Completá el formulario para habilitar el pago.</p>' : ''}
+      ` : `
+        <p class="muted" style="margin-bottom:10px">Si ya pegaste el resumen en la nota y completaste el pago, confirmá acá.</p>
+        <button class="btn btn-green" style="width:100%" onclick="confirmPaid()">Ya pagué — enviar pedido</button>
+      `}
+    </div>
+  `;
+}
+
+function approveOrder(id) {
+  const orders = loadOrders().map(o => o.id === id ? { ...o, status: "APPROVED" } : o);
+  saveOrders(orders);
+  render();
+}
+
+function renderAdmin() {
+  const orders = loadOrders();
+  const list = orders.map(o => `
+    <div class="order-card">
+      <div class="order-head">
+        <div>
+          <div style="color:#f1f5f9;font-size:14px;font-weight:500">${o.customerName}</div>
+          <div class="muted">${o.email}</div>
+        </div>
+        <span class="badge">${o.status === 'APPROVED' ? 'Generado' : 'Esperando OK'}</span>
+      </div>
+      <div class="muted" style="margin-bottom:10px">${o.market} · ${o.timeframe} · SL ${o.stopLoss}% / TP ${o.takeProfit}%</div>
+      ${o.status === 'AWAITING_OK'
+        ? `<button class="btn btn-green" style="font-size:12px;padding:7px 14px" onclick="approveOrder('${o.id}')">Aprobar y generar bot</button>`
+        : `<div style="color:#10b981;font-size:12px">✓ Listo para entregar</div>`
+      }
+    </div>
+  `).join("");
+  return `
+    <h2 style="color:#f1f5f9;margin:0 0 4px;font-size:18px">Pedidos (${orders.length})</h2>
+    <p class="muted" style="margin-bottom:20px">Antes de aprobar, chequeá en tu PayPal que el pago de ese cliente llegó.</p>
+    ${orders.length === 0 ? '<p class="muted">Todavía no hay pedidos.</p>' : list}
+  `;
+}
+
+function render() {
+  renderNav();
+  const content = document.getElementById("content");
+  if (page === "home") content.innerHTML = renderHome();
+  else if (page === "bots") content.innerHTML = renderBots();
+  else if (page === "order") content.innerHTML = renderOrder();
+  else if (page === "admin") content.innerHTML = renderAdmin();
+}
+
+render();
+</script>
+</body>
+</html>
