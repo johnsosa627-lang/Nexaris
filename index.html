@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEXARIS — Algorithmic systems built, tested and monitored.</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+const PAYPAL_ME_LINK = "https://paypal.me/jhs1982";
+const PRICE = 249;
+const ORDERS_KEY = "nexaris_orders_v1";
+
+const MARKETS = ["XAUUSD", "EURUSD", "BTC Futures", "US30", "GBPUSD"];
+const TIMEFRAMES = ["M15", "H1", "H4", "D1"];
+const INDICATORS = [
+  { id: "ema_cross", label: "Cruce de EMA (tendencia)" },
+  { id: "rsi", label: "RSI (sobrecompra/sobreventa)" },
+  { id: "macd", label: "MACD" },
+  { id: "bollinger", label: "Bandas de Bollinger" },
+  { id: "volume", label: "Filtro de volumen" },
+];
+const DIRECTIONS = ["Solo compra", "Solo venta", "Ambas"];
+
+function loadOrders() {
+  try {
+    const raw = localStorage.getItem(ORDERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function persistOrders(orders) {
+  try { localStorage.setItem(ORDERS_KEY, JSON.stringify(orders)); } catch {}
+}
+
+function Nav({ page, setPage }) {
+  const items = [["home","Home"],["bots","Bots"],["order","Custom Bot"],["admin","Admin"]];
+  return (
+    <div className="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-10">
+      <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <button onClick={() => setPage("home")} className="text-slate-100 font-semibold tracking-tight">NEXARIS</button>
+        <div className="flex gap-5 text-sm">
+          {items.map(([id, label]) => (
+            <button key={id} onClick={() => setPage(id)}
+              className={page === id ? "text-slate-100" : "text-slate-500"}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Home({ setPage }) {
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-20">
+      <p className="text-slate-500 text-sm mb-4">Algorithmic systems built, tested and monitored.</p>
+      <h1 className="text-4xl font-semibold text-slate-100 mb-5">NEXARIS</h1>
+      <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
+        Research-driven trading systems designed to be tested, validated, delivered and continuously monitored.
+      </p>
+      <div className="flex gap-3">
+        <button onClick={() => setPage("bots")} className="bg-indigo-500 text-white px-5 py-2.5 rounded text-sm font-medium">Explore Bots</button>
+        <button onClick={() => setPage("order")} className="border border-slate-700 text-slate-200 px-5 py-2.5 rounded text-sm font-medium">Build a Custom Bot</button>
+      </div>
+      <p className="text-slate-600 text-xs mt-16 border-t border-slate-800 pt-4">
+        Trading involves substantial risk. Past performance and backtest results do not guarantee future results.
+      </p>
+    </div>
+  );
+}
+
+function BotsCatalog() {
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-14">
+      <h2 className="text-slate-100 text-xl font-semibold mb-8">Bots</h2>
+      <p className="text-slate-500 text-sm">Catálogo de bots listos — próximamente más sistemas acá.</p>
+    </div>
+  );
+}
+
+function StrategyForm({ orders, setOrders }) {
+  const [form, setForm] = useState({
+    customerName: "", email: "", market: MARKETS[0], timeframe: TIMEFRAMES[1],
+    direction: DIRECTIONS[2], indicators: [], stopLoss: 3, takeProfit: 6,
+  });
+  const [paid, setPaid] = useState(false);
+  const [wentToPay, setWentToPay] = useState(false);
+
+  const toggleIndicator = (id) => setForm((f) => ({
+    ...f, indicators: f.indicators.includes(id) ? f.indicators.filter((x) => x !== id) : [...f.indicators, id],
+  }));
+
+  const valid = form.customerName && form.email && form.indicators.length > 0;
+
+  const openPayment = () => {
+    window.open(PAYPAL_ME_LINK + "/" + PRICE + "USD", "_blank");
+    setWentToPay(true);
+  };
+  const confirmPaid = () => {
+    const newOrder = { id: "ORD-" + Date.now(), ...form, status: "AWAITING_OK", createdAt: new Date().toISOString() };
+    const next = [newOrder, ...orders];
+    setOrders(next); persistOrders(next); setPaid(true);
+  };
+
+  if (paid) {
+    return (
+      <div className="max-w-md mx-auto px-6 py-24 text-center">
+        <div className="text-emerald-500 text-3xl mb-4">✓</div>
+        <h2 className="text-slate-100 font-medium mb-2">Pedido recibido</h2>
+        <p className="text-slate-500 text-sm">Te avisamos apenas tu bot esté generado y listo para descargar.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-6 py-14">
+      <div className="border border-slate-800 rounded-lg p-6">
+        <h2 className="text-slate-100 font-medium mb-1">Armá tu estrategia</h2>
+        <p className="text-slate-500 text-sm mb-6">Elegí las piezas — nada de texto libre.</p>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-5">
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Nombre</label>
+            <input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100" />
+          </div>
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Email</label>
+            <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100" />
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4 mb-5">
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Mercado</label>
+            <select value={form.market} onChange={(e) => setForm({ ...form, market: e.target.value })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100">
+              {MARKETS.map((m) => <option key={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Timeframe</label>
+            <select value={form.timeframe} onChange={(e) => setForm({ ...form, timeframe: e.target.value })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100">
+              {TIMEFRAMES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Dirección</label>
+            <select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100">
+              {DIRECTIONS.map((d) => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="mb-5">
+          <label className="text-slate-400 text-xs block mb-2">Indicadores a combinar</label>
+          <div className="grid md:grid-cols-2 gap-2">
+            {INDICATORS.map((ind) => (
+              <button key={ind.id} type="button" onClick={() => toggleIndicator(ind.id)}
+                className={"text-left border rounded px-3 py-2 text-sm " + (form.indicators.includes(ind.id) ? "border-indigo-500 text-slate-100 bg-indigo-500/10" : "border-slate-700 text-slate-400")}>
+                {form.indicators.includes(ind.id) ? "☑ " : "☐ "}{ind.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Stop-loss (%)</label>
+            <input type="number" value={form.stopLoss} onChange={(e) => setForm({ ...form, stopLoss: Number(e.target.value) })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100" />
+          </div>
+          <div>
+            <label className="text-slate-400 text-xs block mb-1.5">Take-profit (%)</label>
+            <input type="number" value={form.takeProfit} onChange={(e) => setForm({ ...form, takeProfit: Number(e.target.value) })}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100" />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-800 pt-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-slate-400 text-sm">Total</span>
+            <span className="text-slate-100 font-medium">${PRICE} USD</span>
+          </div>
+          {!wentToPay ? (
+            <button disabled={!valid} onClick={openPayment}
+              className="w-full bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white py-2.5 rounded text-sm font-medium">
+              Pagar con PayPal →
+            </button>
+          ) : (
+            <div>
+              <p className="text-slate-400 text-xs mb-3">Si ya completaste el pago en la pestaña de PayPal, confirmá acá para enviar tu pedido.</p>
+              <button onClick={confirmPaid} className="w-full bg-emerald-600 text-white py-2.5 rounded text-sm font-medium">
+                Ya pagué — enviar pedido
+              </button>
+            </div>
+          )}
+          {!valid && !wentToPay && <p className="text-slate-600 text-xs mt-2">Completá el formulario para habilitar el pago.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminOrders({ orders, setOrders }) {
+  const approve = (id) => {
+    const next = orders.map((o) => (o.id === id ? { ...o, status: "APPROVED" } : o));
+    setOrders(next); persistOrders(next);
+  };
+  return (
+    <div className="max-w-2xl mx-auto px-6 py-14">
+      <h2 className="text-slate-100 font-medium mb-1">Pedidos ({orders.length})</h2>
+      <p className="text-slate-600 text-xs mb-6">Antes de aprobar, chequeá en tu PayPal que el pago de ese cliente llegó.</p>
+      {orders.length === 0 && <p className="text-slate-600 text-sm">Todavía no hay pedidos.</p>}
+      <div className="space-y-3">
+        {orders.map((o) => (
+          <div key={o.id} className="border border-slate-800 rounded-lg p-4">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <div className="text-slate-100 text-sm font-medium">{o.customerName}</div>
+                <div className="text-slate-600 text-xs">{o.email}</div>
+              </div>
+              <span className="text-xs border border-slate-700 text-slate-400 rounded px-2 py-0.5">
+                {o.status === "APPROVED" ? "Generado" : "Esperando OK"}
+              </span>
+            </div>
+            <div className="text-slate-400 text-xs mb-3">
+              {o.market} · {o.timeframe} · SL {o.stopLoss}% / TP {o.takeProfit}%
+            </div>
+            {o.status === "AWAITING_OK" ? (
+              <button onClick={() => approve(o.id)} className="bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded">
+                Aprobar y generar bot
+              </button>
+            ) : (
+              <div className="text-emerald-500 text-xs">✓ Listo para entregar</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [page, setPage] = useState("home");
+  const [orders, setOrders] = useState([]);
+  useEffect(() => { setOrders(loadOrders()); }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-950 font-sans">
+      <Nav page={page} setPage={setPage} />
+      {page === "home" && <Home setPage={setPage} />}
+      {page === "bots" && <BotsCatalog />}
+      {page === "order" && <StrategyForm orders={orders} setOrders={setOrders} />}
+      {page === "admin" && <AdminOrders orders={orders} setOrders={setOrders} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
