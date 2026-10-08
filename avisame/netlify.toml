@@ -1,0 +1,18 @@
+# Publicación de la web de Avisame en Netlify.
+# En Netlify: "Base directory" = avisame (lo toma de acá).
+# Variables (Site configuration → Environment variables):
+#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY,
+#   EXPO_PUBLIC_RESPONSABLE, EXPO_PUBLIC_EMAIL_CONTACTO, EXPO_PUBLIC_DOMICILIO
+# Sin las de Supabase, la web se publica en modo VISTA PREVIA.
+[build]
+  command = "npm run build:web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Aplicación de una sola página: todas las rutas devuelven index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
