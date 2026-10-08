@@ -1,0 +1,17 @@
+# Configuración de Supabase para Avisame (solo lo que cambia respecto de lo
+# predeterminado). Ver README.md.
+project_id = "avisame"
+
+[auth]
+site_url = "https://avisame.uy"
+additional_redirect_urls = ["avisame://"]
+
+[auth.email]
+enable_signup = true
+# Ingreso con código de 6 dígitos (sin contraseña).
+otp_length = 6
+otp_expiry = 900
+
+# Mercado Pago no manda el token de Supabase: la seguridad es la firma x-signature.
+[functions.mp-webhook]
+verify_jwt = false
