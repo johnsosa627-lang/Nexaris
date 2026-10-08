@@ -40,6 +40,28 @@ end $$;
 create trigger crear_perfil after insert on auth.users
   for each row execute function public.crear_perfil();
 
+-- ───────────────────────────── Ajustes generales ────────────────────────────
+-- Interruptor del modo lanzamiento. Mientras cobros_activos = false, todas las
+-- automotoras tienen gratis lo del plan Pro (contactos y avisos) y no se puede
+-- suscribir a nadie. Para empezar a cobrar:
+--   update public.ajustes set cobros_activos = true;
+
+create table public.ajustes (
+  id boolean primary key default true check (id),
+  cobros_activos boolean not null default false
+);
+insert into public.ajustes default values;
+
+alter table public.ajustes enable row level security;
+create policy "ajustes: lectura pública" on public.ajustes for select to anon, authenticated using (true);
+revoke all on public.ajustes from anon, authenticated;
+grant select on public.ajustes to anon, authenticated;
+
+create function public.cobros_activos() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select cobros_activos from public.ajustes limit 1), false)
+$$;
+
 -- ───────────────────────────── Automotoras ──────────────────────────────────
 -- El plan solo lo cambia el servidor (webhook de Mercado Pago). La app no
 -- tiene permiso sobre esas columnas.
@@ -102,12 +124,12 @@ $$;
 create function public.mi_automotora() returns table (
   id uuid, nombre text, departamento text, ciudad text, direccion text, telefono text,
   lat double precision, lng double precision, plan text, plan_vigente text, plan_vence timestamptz,
-  mp_estado text, renovacion_cancelada boolean, tiene_suscripcion boolean
+  mp_estado text, renovacion_cancelada boolean, tiene_suscripcion boolean, cobros_activos boolean
 )
 language sql stable security definer set search_path = public as $$
   select a.id, a.nombre, a.departamento, a.ciudad, a.direccion, a.telefono, a.lat, a.lng,
          a.plan, public.plan_vigente(a), a.plan_vence, a.mp_estado, a.renovacion_cancelada,
-         a.mp_preapproval_id is not null
+         a.mp_preapproval_id is not null, public.cobros_activos()
   from public.automotoras a where a.owner_id = auth.uid()
 $$;
 
@@ -327,7 +349,7 @@ language sql stable security definer set search_path = public as $$
   order by b.creado desc
 $$;
 
--- Contacto de un cliente: solo con plan pago al día Y si el cliente lo autorizó
+-- Contacto de un cliente: solo con plan pago al día (o en el modo lanzamiento) Y si el cliente lo autorizó
 -- Y si la búsqueda coincide con un vehículo activo de la automotora.
 create function public.contacto_cliente(p_busqueda uuid) returns table (nombre text, whatsapp text)
 language plpgsql stable security definer set search_path = public as $$
@@ -337,7 +359,8 @@ begin
   if a.id is null then
     raise exception 'No tenés una automotora registrada' using errcode = '42501';
   end if;
-  if public.plan_vigente(a) not in ('pro', 'destacado') then
+  -- En el modo lanzamiento (sin cobros) el contacto es gratis para todas.
+  if public.cobros_activos() and public.plan_vigente(a) not in ('pro', 'destacado') then
     raise exception 'Necesitás el plan Pro o Destacado al día para ver el contacto' using errcode = '42501';
   end if;
   return query

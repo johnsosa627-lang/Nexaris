@@ -100,7 +100,7 @@ reales hace falta una compilación propia (sección 9), no Expo Go.
 npm run typecheck      # TypeScript sin errores
 npm run test:nucleo    # Intérprete, coincidencias, distancias, planes (node --test)
 npm run build:web      # Compilación web → dist/
-npm run test:db        # Migración + 44 comprobaciones de RLS y permisos (necesita Postgres)
+npm run test:db        # Migración + 48 comprobaciones de RLS y permisos (necesita Postgres)
 ```
 
 `test:db` crea una base temporal en un Postgres local, simula lo mínimo de
@@ -203,6 +203,18 @@ Qué hace cada una:
 ---
 
 ## 7. Mercado Pago: claves y webhook
+
+> **Modo lanzamiento (así arranca la base).** Mientras no actives los cobros,
+> Avisame es gratis para automotoras: todas tienen lo del plan Pro (contactos de
+> los clientes que lo autorizaron y avisos al celular), el panel muestra
+> “Lanzamiento · gratis” y nadie puede suscribirse. No hace falta configurar
+> Mercado Pago todavía. Cuando decidas cobrar (con Mercado Pago ya configurado y
+> tu inscripción en DGI/BPS hecha), corré en el **SQL Editor** de Supabase:
+> ```sql
+> update public.ajustes set cobros_activos = true;
+> ```
+> Desde ese momento rigen los planes y los precios de `PLANES`. Avisá a las
+> automotoras con anticipación (los términos de uso lo prometen).
 
 1. Entrá a <https://www.mercadopago.com.uy/developers> con la cuenta que va a
    **cobrar** y andá a **Tus integraciones → Crear aplicación**. Elegí el producto

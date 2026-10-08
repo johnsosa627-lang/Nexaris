@@ -284,7 +284,7 @@ export function crearApiDemo(): Api {
       else {
         automotora = {
           ...datos, id: nuevoId('auto'), owner_id: u.id, plan: 'gratis', plan_vigente: 'gratis', plan_vence: null,
-          mp_estado: null, renovacion_cancelada: false, tiene_suscripcion: false,
+          mp_estado: null, renovacion_cancelada: false, tiene_suscripcion: false, cobros_activos: false,
         };
         // Para que el panel tenga algo que mostrar, la automotora nueva arranca
         // con dos vehículos de ejemplo en su inventario.
@@ -306,7 +306,7 @@ export function crearApiDemo(): Api {
     },
     async contactoCliente(busquedaId) {
       await espera();
-      if (!automotora || !PLANES[planVigente(automotora.plan, automotora.plan_vence)].verContactos) {
+      if (!automotora || (automotora.cobros_activos && !PLANES[planVigente(automotora.plan, automotora.plan_vence)].verContactos)) {
         throw new Error('Necesitás el plan Pro o Destacado al día para ver el contacto.');
       }
       const c = misClientes().find((x) => x.busqueda_id === busquedaId);
@@ -318,6 +318,7 @@ export function crearApiDemo(): Api {
       // En la app real esto abre Mercado Pago y el plan se activa cuando el
       // webhook confirma el cobro. En la vista previa se simula esa confirmación.
       if (!automotora) throw new Error('Primero registrá tu automotora.');
+      if (!automotora.cobros_activos) throw new Error('Por ahora Avisame es gratis para automotoras: no hace falta suscribirse.');
       await espera(500);
       const vence = new Date();
       vence.setMonth(vence.getMonth() + 1);

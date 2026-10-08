@@ -161,6 +161,28 @@ select set_config('request.jwt.claims', json_build_object('sub', :beto)::text, f
 select pg_temp.esperar((select count(*) from public.mis_clientes()) = 2, 'la automotora ve los 2 clientes que coinciden');
 select pg_temp.esperar(public.cuantos_buscan() = 2, 'el plan Gratis ve cuántos buscan');
 select pg_temp.esperar(not exists (select 1 from public.busquedas), 'la automotora no puede leer las búsquedas directamente');
+
+-- Modo lanzamiento (arranca así): el contacto es gratis, pero igual exige consentimiento.
+select pg_temp.esperar((select cobros_activos from public.mi_automotora()) = false, 'la base arranca en modo lanzamiento (sin cobros)');
+select pg_temp.esperar(
+  (select whatsapp from public.contacto_cliente((select busqueda_id from public.mis_clientes() where autoriza_contacto))) = '098111222',
+  'en el lanzamiento el plan Gratis ve el contacto de quien lo autorizó');
+do $$ begin
+  perform public.contacto_cliente((select busqueda_id from public.mis_clientes() where not autoriza_contacto));
+  raise exception 'FALLÓ: en el lanzamiento vio un contacto no autorizado';
+exception when insufficient_privilege then raise notice 'ok · en el lanzamiento igual se respeta el consentimiento';
+end $$;
+do $$ begin
+  update public.ajustes set cobros_activos = true;
+  raise exception 'FALLÓ: una automotora activó los cobros';
+exception when insufficient_privilege then raise notice 'ok · nadie puede tocar el interruptor de cobros desde la app';
+end $$;
+
+-- Se activan los cobros (lo hace el dueño, desde Supabase)
+reset role;
+update public.ajustes set cobros_activos = true;
+set role authenticated;
+select set_config('request.jwt.claims', json_build_object('sub', :beto)::text, false);
 do $$ begin
   perform public.contacto_cliente((select busqueda_id from public.mis_clientes() where autoriza_contacto limit 1));
   raise exception 'FALLÓ: vio un contacto con plan Gratis';

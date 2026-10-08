@@ -96,11 +96,17 @@ export default function PanelAutomotora() {
           <Titulo nivel={2}>{a.nombre}</Titulo>
           <Texto style={{ color: colores.gris }}>📍 {nombreLugar(a.departamento, a.ciudad)} · {a.telefono}</Texto>
         </View>
-        <View style={[estilos.plan, a.plan_vigente !== 'gratis' && { backgroundColor: a.plan_vigente === 'destacado' ? colores.doradoFondo : colores.verdeFondo }]}>
-          <Text style={[estilos.planTexto, a.plan_vigente === 'destacado' && { color: colores.dorado }, a.plan_vigente === 'pro' && { color: colores.verde }]}>
-            {a.plan_vigente === 'destacado' ? '★ ' : ''}{plan.nombre}
-          </Text>
-        </View>
+        {!a.cobros_activos ? (
+          <View style={[estilos.plan, { backgroundColor: colores.verdeFondo }]}>
+            <Text style={[estilos.planTexto, { color: colores.verde }]}>Lanzamiento · gratis</Text>
+          </View>
+        ) : (
+          <View style={[estilos.plan, a.plan_vigente !== 'gratis' && { backgroundColor: a.plan_vigente === 'destacado' ? colores.doradoFondo : colores.verdeFondo }]}>
+            <Text style={[estilos.planTexto, a.plan_vigente === 'destacado' && { color: colores.dorado }, a.plan_vigente === 'pro' && { color: colores.verde }]}>
+              {a.plan_vigente === 'destacado' ? '★ ' : ''}{plan.nombre}
+            </Text>
+          </View>
+        )}
       </View>
       <Pressable accessibilityRole="button" onPress={() => setEditando(true)} style={{ alignSelf: 'flex-start', marginBottom: 12 }}>
         <Text style={estilos.enlace}>Editar datos de la automotora</Text>
@@ -179,7 +185,8 @@ function Clientes({ a, irAPlan }: { a: Automotora; irAPlan: () => void }) {
   const [lista, setLista] = useState<Cliente[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [contactos, setContactos] = useState<Record<string, { nombre: string; whatsapp: string } | { error: string }>>({});
-  const verContactos = PLANES[a.plan_vigente].verContactos;
+  // En el modo lanzamiento todas las automotoras ven los contactos autorizados.
+  const verContactos = !a.cobros_activos || PLANES[a.plan_vigente].verContactos;
 
   useEffect(() => {
     api.clientes().then(setLista).catch((e) => setError(mensajeError(e)));
@@ -326,6 +333,23 @@ function Plan({ a, recargar }: { a: Automotora; recargar: () => Promise<void> })
         setTrabajando(null);
       }
     });
+
+  if (!a.cobros_activos) {
+    return (
+      <Tarjeta>
+        <Text style={estilos.clienteBusca}>Lanzamiento</Text>
+        <Text style={estilos.clienteTitulo}>Avisame es gratis para automotoras</Text>
+        <Texto style={{ marginTop: 6 }}>Mientras dure el lanzamiento tenés todo sin costo:</Texto>
+        <Texto style={{ marginTop: 6 }}>✓ Publicar todo tu inventario</Texto>
+        <Texto style={{ marginTop: 4 }}>✓ Ver cuántas personas buscan lo que tenés</Texto>
+        <Texto style={{ marginTop: 4 }}>✓ El contacto de los clientes que lo autorizaron</Texto>
+        <Texto style={{ marginTop: 4 }}>✓ Aviso al celular cuando aparece un cliente nuevo</Texto>
+        <Texto style={{ color: colores.gris, fontSize: 14, marginTop: 12 }}>
+          Más adelante habrá planes pagos. Te vamos a avisar con anticipación y nunca se cobra nada sin que te suscribas.
+        </Texto>
+      </Tarjeta>
+    );
+  }
 
   const activo = a.plan_vigente !== 'gratis';
   const renueva = activo && a.tiene_suscripcion && !a.renovacion_cancelada;

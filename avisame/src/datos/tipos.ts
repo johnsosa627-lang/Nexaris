@@ -98,6 +98,8 @@ export type Automotora = {
   mp_estado: string | null;
   renovacion_cancelada: boolean;
   tiene_suscripcion: boolean;
+  /** false = modo lanzamiento: todo lo del plan Pro es gratis y no se cobra. */
+  cobros_activos: boolean;
 };
 
 export type DatosAutomotora = {

@@ -10,6 +10,9 @@ servir(async (req) => {
   const yo = await usuario(req, db);
   if (!yo?.email) return error('Tenés que ingresar', 401);
 
+  const { data: cobros } = await db.rpc('cobros_activos');
+  if (cobros !== true) return error('Por ahora Avisame es gratis para automotoras: no hace falta suscribirse.', 409);
+
   const { plan } = await req.json().catch(() => ({}));
   if (!esPlanPago(plan)) return error('Elegí el plan Pro o Destacado');
 

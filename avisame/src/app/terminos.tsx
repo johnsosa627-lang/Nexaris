@@ -43,7 +43,8 @@ export default function Terminos() {
         {
           titulo: 'Planes para automotoras',
           parrafos: [
-            `Planes mensuales en pesos uruguayos: ${PLANES.gratis.nombre} (sin costo), ${PLANES.pro.nombre} (${formatoPesos(PLANES.pro.precioUYU)} por mes) y ${PLANES.destacado.nombre} (${formatoPesos(PLANES.destacado.precioUYU)} por mes).`,
+            'Durante el lanzamiento, Avisame es gratis para las automotoras. Antes de empezar a cobrar vamos a avisar con anticipación; nunca se cobra nada sin que la automotora se suscriba.',
+            `Cuando empiecen los cobros, los planes serán mensuales en pesos uruguayos: ${PLANES.gratis.nombre} (sin costo), ${PLANES.pro.nombre} (${formatoPesos(PLANES.pro.precioUYU)} por mes) y ${PLANES.destacado.nombre} (${formatoPesos(PLANES.destacado.precioUYU)} por mes).`,
             'El cobro es una suscripción mensual con Mercado Pago. El plan se activa cuando Mercado Pago confirma el pago. Podés cancelar la renovación cuando quieras desde el panel: el plan sigue hasta el final del período pagado y no se hacen devoluciones proporcionales, salvo que la ley lo exija.',
             'Los contactos de clientes solo se muestran si el cliente lo autorizó. La automotora se compromete a usarlos únicamente para ofrecer vehículos relacionados con su búsqueda y a no compartirlos con terceros.',
           ],

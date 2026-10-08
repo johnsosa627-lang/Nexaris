@@ -138,7 +138,7 @@ async function registrar(db: SupabaseClient, filas: Fila[]) {
   return (data ?? []) as { id: string; busqueda_id: string; user_id: string; distancia_km: number }[];
 }
 
-/** "Nuevo cliente" a la automotora, una sola vez por búsqueda y solo con plan Pro o Destacado. */
+/** "Nuevo cliente" a la automotora, una sola vez por búsqueda y con plan Pro o Destacado (o en el lanzamiento). */
 async function avisarAutomotora(db: SupabaseClient, automotoraId: string, busquedas: Busqueda[]) {
   if (busquedas.length === 0) return;
   const { data: a } = await db.from('automotoras').select('id, owner_id, plan, plan_vence').eq('id', automotoraId).maybeSingle();
@@ -147,7 +147,10 @@ async function avisarAutomotora(db: SupabaseClient, automotoraId: string, busque
     .from('avisos_automotora')
     .upsert(busquedas.map((b) => ({ automotora_id: a.id, busqueda_id: b.id })), { onConflict: 'automotora_id,busqueda_id', ignoreDuplicates: true })
     .select('busqueda_id');
-  if (!nuevos?.length || !PLANES[planVigente(a.plan, a.plan_vence)].avisos) return;
+  if (!nuevos?.length) return;
+  // En el modo lanzamiento (sin cobros) todas las automotoras reciben los avisos.
+  const { data: cobros } = await db.rpc('cobros_activos');
+  if (cobros !== false && !PLANES[planVigente(a.plan, a.plan_vence)].avisos) return;
   const token = (await tokensDe(db, [a.owner_id])).get(a.owner_id);
   if (!token) return;
   await enviarPush(
