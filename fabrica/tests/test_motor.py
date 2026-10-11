@@ -5,7 +5,7 @@ import pytest
 from tests.conftest import velas, velas_aleatorias
 from fabrica.motor import Costos, Salidas, _nucleo, backtest
 
-SIN_COSTOS = Costos(0, 0, False)
+SIN_COSTOS = Costos(0, 0, False, 0)
 PCT = Salidas("pct", 2, "pct", 4)
 
 
@@ -42,7 +42,7 @@ def test_entrada_es_en_la_apertura_siguiente():
 
 
 def test_comisiones_y_slippage():
-    c = Costos(0.05, 0.02, False)
+    c = Costos(0.05, 0.02, False, 0.03)
     r = correr(BASE + [(101, 105, 100.5, 104)], largo=[0], costos=c)
     op = r.operaciones.iloc[0]
     pe = 100 * 1.0002
@@ -65,6 +65,16 @@ def test_stop_loss_y_hueco():
     assert r.operaciones.iloc[0]["r"] == pytest.approx(-2.5)
 
 
+def test_slippage_extra_en_stops():
+    c = Costos(0, 0, False, 0.03)
+    op = correr(BASE + [(99, 99.5, 97, 97.5)], largo=[0], costos=c).operaciones.iloc[0]
+    assert op["precio_salida"] == pytest.approx(98 * (1 - 0.0003))
+    op = correr(BASE + [(101, 105, 100.5, 104)], largo=[0], costos=c).operaciones.iloc[0]
+    assert op["precio_salida"] == pytest.approx(104)  # el take-profit (orden límite) no lleva el extra
+    op = correr(BASE + [(95, 96, 94, 95.5)], largo=[0], costos=c).operaciones.iloc[0]
+    assert op["precio_salida"] == 95  # hueco: ya se llena al precio real de apertura
+
+
 def test_stop_y_tp_en_la_misma_vela_cuenta_como_stop():
     r = correr(BASE + [(100, 105, 97, 104)], largo=[0])
     assert r.operaciones.iloc[0]["motivo"] == "stop-loss"
@@ -82,9 +92,9 @@ def test_short():
 def test_funding_long_paga_y_short_cobra():
     filas = BASE + [(101, 101.5, 100.5, 101), (101, 101.5, 100.5, 101)]
     fund = np.array([0, 0, 0.001, 0])
-    largo = correr(filas, largo=[0], funding=fund, costos=Costos(0, 0, True))
-    corto = correr(filas, corto=[0], funding=fund, costos=Costos(0, 0, True))
-    sin = correr(filas, largo=[0], funding=fund, costos=Costos(0, 0, False))
+    largo = correr(filas, largo=[0], funding=fund, costos=Costos(0, 0, True, 0))
+    corto = correr(filas, corto=[0], funding=fund, costos=Costos(0, 0, True, 0))
+    sin = correr(filas, largo=[0], funding=fund, costos=Costos(0, 0, False, 0))
     pago = 0.001 * 101
     assert largo.operaciones.iloc[0]["funding_por_unidad"] == pytest.approx(pago)
     assert largo.operaciones.iloc[0]["retorno"] == pytest.approx(sin.operaciones.iloc[0]["retorno"] - 0.5 * pago / 100)
@@ -168,7 +178,7 @@ def test_numba_y_python_dan_lo_mismo():
     a = atr(v["high"], v["low"], v["close"]).to_numpy()
     fund = np.where(np.arange(3000) % 8 == 0, 0.0001, 0.0)
     args = (v["open"].to_numpy(), v["high"].to_numpy(), v["low"].to_numpy(), v["close"].to_numpy(), a,
-            l, c, sl, sc, fund, 1, 1.5, 0, 3.0, 2.0, 30, 0.0005, 0.0002, 0, 0.01, 3.0)
+            l, c, sl, sc, fund, 1, 1.5, 0, 3.0, 2.0, 30, 0.0005, 0.0002, 0, 0.01, 3.0, 0.0003)
     for x, y in zip(_nucleo(*args), _nucleo.py_func(*args)):
         np.testing.assert_allclose(x, y)
 

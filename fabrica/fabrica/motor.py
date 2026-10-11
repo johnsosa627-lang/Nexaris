@@ -7,7 +7,7 @@ Reglas de simulación (conservadoras, sin mirar el futuro):
 - Si en una misma vela se tocan el stop y el take-profit, se asume que primero tocó el stop.
 - Si el precio abre más allá del stop (hueco), se cierra al precio de apertura, no al del stop.
 - Tamaño: se arriesga `riesgo_pct` del capital hasta el stop, con tope de apalancamiento.
-- Slippage en cada entrada y salida, comisión en cada lado, funding cada 8 h según la historia real.
+- Slippage en cada entrada y salida (más un extra en los stops), comisión en cada lado, funding cada 8 h según la historia real.
 """
 from dataclasses import dataclass
 from typing import Optional
@@ -51,11 +51,14 @@ class Costos:
     comision_pct: float = 0.05
     slippage_pct: float = 0.02
     usar_funding: bool = True
+    # Extra en los stops: cuando el precio atraviesa el stop, la orden a mercado se llena algo peor
+    slippage_stop_pct: float = 0.03
 
     @classmethod
     def desde_config(cls, cfg: dict) -> "Costos":
         c = cfg["costos"]
-        return cls(float(c["comision_pct"]), float(c["slippage_pct"]), bool(c["usar_funding"]))
+        return cls(float(c["comision_pct"]), float(c["slippage_pct"]), bool(c["usar_funding"]),
+                   float(c.get("slippage_stop_pct", 0.03)))
 
 
 @njit(cache=True)
@@ -68,7 +71,7 @@ def _cerrar(precio, lado, entrada, dist, nocional, fund_u, comision, slippage):
 @njit(cache=True)
 def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long, sal_short, funding,
             stop_tipo, stop_val, tp_tipo, tp_val, trail_val, max_velas, comision, slippage, retraso,
-            riesgo, apal_max):
+            riesgo, apal_max, slip_stop):
     n = len(cierre)
     cap = n // 2 + 2
     t_ent = np.empty(cap, np.int64)
@@ -145,7 +148,7 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                 if apertura[i] <= stop:
                     precio = apertura[i]; mot = mot_stop
                 elif minimo[i] <= stop:
-                    precio = stop; mot = mot_stop
+                    precio = stop * (1.0 - slip_stop); mot = mot_stop
                 elif tp_tipo != 2 and apertura[i] >= tp:
                     precio = apertura[i]; mot = 2
                 elif tp_tipo != 2 and maximo[i] >= tp:
@@ -154,7 +157,7 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                 if apertura[i] >= stop:
                     precio = apertura[i]; mot = mot_stop
                 elif maximo[i] >= stop:
-                    precio = stop; mot = mot_stop
+                    precio = stop * (1.0 + slip_stop); mot = mot_stop
                 elif tp_tipo != 2 and apertura[i] <= tp:
                     precio = apertura[i]; mot = 2
                 elif tp_tipo != 2 and minimo[i] <= tp:
@@ -238,7 +241,8 @@ def backtest(velas: pd.DataFrame, ent_long, ent_short, salidas: Salidas, costos:
                   _bool(sal_long, n), _bool(sal_short, n), fund,
                   TIPOS[salidas.stop_tipo], float(salidas.stop), TIPOS[salidas.tp_tipo], float(salidas.tp),
                   float(salidas.trailing), int(salidas.max_velas), costos.comision_pct / 100.0,
-                  costos.slippage_pct / 100.0, int(retraso), riesgo_pct / 100.0, float(apalancamiento_max))
+                  costos.slippage_pct / 100.0, int(retraso), riesgo_pct / 100.0, float(apalancamiento_max),
+                  costos.slippage_stop_pct / 100.0)
     ent, sal, lado, pe, ps, ret, r, mot, fu, noc = res
     ts = velas["ts"].to_numpy(dtype="int64")
     ops = pd.DataFrame({

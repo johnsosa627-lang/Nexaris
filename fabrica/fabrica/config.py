@@ -15,4 +15,8 @@ def cargar_config(ruta: str = None) -> dict:
     if not os.path.isabs(carpeta):
         carpeta = str(RAIZ / carpeta)
     cfg["datos"]["carpeta"] = carpeta
+    salida = os.getenv("FABRICA_RESULTADOS") or cfg.get("salida", {}).get("carpeta", "resultados")
+    if not os.path.isabs(salida):
+        salida = str(RAIZ / salida)
+    cfg.setdefault("salida", {})["carpeta"] = salida
     return cfg

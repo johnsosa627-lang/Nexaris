@@ -41,9 +41,10 @@ def racha_perdedora(retornos: np.ndarray) -> int:
 def calcular_metricas(ops: pd.DataFrame, ts_inicio: int, ts_fin: int) -> dict:
     n = len(ops)
     vacio = {"operaciones": 0, "ganadoras_pct": 0.0, "profit_factor": 0.0, "retorno_pct": 0.0,
-             "cagr_pct": 0.0, "max_drawdown_pct": 0.0, "ret_dd": 0.0, "estabilidad": 0.0,
+             "cagr_pct": 0.0, "max_drawdown_pct": 0.0, "ret_dd": 0.0, "retorno_simple_pct": 0.0, "estabilidad": 0.0,
              "sharpe": 0.0, "expectativa_r": 0.0, "racha_perdedora": 0, "anios": {},
-             "anios_positivos_pct": 0.0, "velas_promedio": 0.0, "operaciones_por_anio": 0.0}
+             "anios_positivos_pct": 0.0, "velas_promedio": 0.0, "operaciones_por_anio": 0.0,
+             "sharpe_operacion": 0.0, "asimetria": 0.0, "curtosis": 3.0}
     if n == 0:
         return vacio
     ret = ops["retorno"].to_numpy(dtype=float)
@@ -51,6 +52,10 @@ def calcular_metricas(ops: pd.DataFrame, ts_inicio: int, ts_fin: int) -> dict:
     ganancias, perdidas = ret[ret > 0].sum(), -ret[ret < 0].sum()
     retorno = (curva[-1] - 1) * 100
     dd = max_drawdown_pct(curva)
+    # Ganancia/caída como StrategyQuant: con tamaño fijo (sin reinvertir), en % del capital inicial
+    simple = np.concatenate([[0.0], np.cumsum(ret)])
+    dd_simple = float((np.maximum.accumulate(simple) - simple).max() * 100)
+    retorno_simple = float(simple[-1] * 100)
     anios_total = max((ts_fin - ts_inicio) / MS_ANIO, 1e-9)
     cagr = ((curva[-1]) ** (1 / anios_total) - 1) * 100 if curva[-1] > 0 else -100.0
     std = ret.std(ddof=1) if n > 1 else 0.0
@@ -67,7 +72,8 @@ def calcular_metricas(ops: pd.DataFrame, ts_inicio: int, ts_fin: int) -> dict:
         "retorno_pct": float(retorno),
         "cagr_pct": float(cagr),
         "max_drawdown_pct": dd,
-        "ret_dd": float(min(retorno / dd, TOPE)) if dd > 0 else (TOPE if retorno > 0 else 0.0),
+        "ret_dd": float(min(retorno_simple / dd_simple, TOPE)) if dd_simple > 0 else (TOPE if retorno_simple > 0 else 0.0),
+        "retorno_simple_pct": retorno_simple,
         "estabilidad": estabilidad(curva, tiempos),
         "sharpe": sharpe,
         "expectativa_r": float(ops["r"].mean()),
@@ -76,6 +82,10 @@ def calcular_metricas(ops: pd.DataFrame, ts_inicio: int, ts_fin: int) -> dict:
         "anios_positivos_pct": float((anios > 0).mean() * 100),
         "velas_promedio": float(ops["velas"].mean()),
         "operaciones_por_anio": float(por_anio),
+        # por operación (sin anualizar): se usan en el Deflated Sharpe Ratio
+        "sharpe_operacion": float(ret.mean() / std) if std > 0 else 0.0,
+        "asimetria": float(((ret - ret.mean()) ** 3).mean() / ret.std() ** 3) if std > 0 else 0.0,
+        "curtosis": float(((ret - ret.mean()) ** 4).mean() / ret.std() ** 4) if std > 0 else 3.0,
     }
 
 

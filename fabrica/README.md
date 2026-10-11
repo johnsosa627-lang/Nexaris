@@ -9,7 +9,7 @@ y las que ganaron por suerte, y pone a operar solo las mejores (primero con plat
 |---|---|---|
 | 1 | Cuentas y claves que tenés que crear | ⏳ falta la verificación de identidad en Binance |
 | 2 | Datos + motor de pruebas | ✅ listo |
-| 3 | Fábrica de estrategias + filtros + anti-suerte | pendiente |
+| 3 | Fábrica de estrategias + filtros + anti-suerte | ✅ listo |
 | 4 | Examen final + informes | pendiente |
 | 5 | Liga de bots en testnet + Telegram + Easypanel | pendiente |
 | 6 | Pasar a real con 15 dólares (solo si lo pedís) | pendiente |
@@ -26,7 +26,8 @@ y las que ganaron por suerte, y pone a operar solo las mejores (primero con plat
 **Motor de pruebas** (`fabrica/motor.py`)
 - Simula una estrategia vela por vela, sin mirar el futuro: decide al cierre de una vela y entra
   en la apertura de la siguiente.
-- Siempre cobra **comisión** (0,05% por lado), **slippage** (0,02% por lado) y **funding** real.
+- Siempre cobra **comisión** (0,05% por lado), **slippage** (0,02% por lado, más 0,03% extra en los
+  stops, que se llenan peor) y **funding** real.
 - Toda operación tiene stop-loss; si no lo tiene, el motor se niega a correr.
 - Si en una vela se tocan el stop y el take-profit, cuenta como pérdida (lo más prudente).
 - Si el precio "salta" por encima del stop, cobra el precio real del salto, no el del stop.
@@ -49,11 +50,55 @@ python -m pytest -q                                   # pruebas automáticas
 python -m fabrica.datos actualizar                    # bajar/actualizar datos de Binance
 python -m fabrica.datos revisar                       # controlar calidad de los datos
 python -m fabrica.ejemplo --simbolo XRP/USDT:USDT --tf 1h   # probar el motor con una estrategia de ejemplo
+python -m fabrica.ciclo --rapido                      # ciclo chico de la fábrica (para probar)
+python -m fabrica.ciclo                               # ciclo completo (todas las monedas y temporalidades)
 ```
 
 La estrategia de ejemplo (cruce de medias) solo sirve para ver que el motor funciona.
 No es una recomendación: lo más probable es que pierda, que es justamente lo que la fábrica va a
 aprender a descartar.
+
+## Etapa 3: la fábrica
+
+**Cómo se arma una estrategia** (`fabrica/estrategia.py`): siempre es simple.
+- 1 **disparador** (el momento de entrar): cruce de medias, precio que cruza su media, cruce del MACD,
+  ruptura de máximos (Donchian), rebote en Bollinger o RSI que cruza un nivel.
+- 0 a 2 **filtros** (condiciones que tienen que cumplirse): tendencia, RSI, ADX, volumen, +DI/-DI.
+- **Salidas**: stop-loss (siempre) en % o ATR, take-profit, stop móvil, salida por tiempo.
+- Puede operar solo compras, solo ventas en corto, o ambas (la venta usa la regla espejo).
+- Cada una tiene una explicación en español, por ejemplo: *"Compra cuando el precio supera el máximo
+  de las últimas 20 velas, siempre que el volumen sea mayor a 1.5 veces su promedio..."*
+
+**Cómo inventa** (`fabrica/generador.py`): arranca con 200 estrategias al azar y, durante 30
+generaciones, cruza las mejores entre sí y las muta (algoritmo genético). Premia ganancia/caída y curva
+pareja; castiga las complicadas. Solo usa el 70% más viejo de los datos de trabajo.
+
+**El colador** (`fabrica/filtros.py`): las 30 mejores pasan por 7 filtros, en orden:
+
+1. **Métricas mínimas** (en todo el período de trabajo): ≥200 operaciones, profit factor >1,3,
+   ganancia/caída >3, caída máxima <20%, curva pareja >0,8, gana en la mayoría de los años.
+2. **Datos no usados + walk-forward**: tiene que ganar en el 30% de datos que no vio, y en un
+   walk-forward (elegir con el pasado, probar en el período siguiente) ganar en ≥60% de las ventanas.
+3. **Monte Carlo**: 1.000 simulaciones mezclando el orden, salteando 10% de operaciones y con
+   comisiones dobles. Tiene que ganar en ≥95%. Guarda la peor caída prevista (para jubilarla en vivo).
+4. **Sobreajuste**: 30 variantes moviendo un poco los números; ≥80% tienen que seguir ganando.
+5. **Otras monedas y temporalidad vecina**: tiene que ganar en ≥50% de las otras monedas y en la
+   temporalidad de al lado.
+6. **Entrar una vela tarde**: tiene que seguir ganando.
+7. **Anti-suerte**: se corre el MISMO generador sobre precios mezclados al azar (sin ningún patrón real).
+   Lo mejor que sale ahí es "lo que da la suerte"; la estrategia tiene que superarlo por 20%.
+   Además, el **Deflated Sharpe Ratio** (que corrige por la cantidad de estrategias probadas) tiene que
+   ser ≥0,95.
+
+Los resultados de cada ciclo quedan en `resultados/ciclo_FECHA/`: `resumen.txt` (en lenguaje simple),
+`embudo.json` (cuántas pasaron cada filtro y por qué se descartó cada una) y `aprobadas/*.json`.
+El examen final con los 6 meses guardados es la etapa 4.
+
+**Cuánto tarda**: con 4 núcleos, un ciclo completo (5 monedas × 3 temporalidades) tarda alrededor de
+10 a 20 minutos.
+
+**Comprobado con datos inventados**: si se esconde una tendencia real en los precios, la fábrica la
+encuentra y la aprueba; si los precios son puro azar, no aprueba nada.
 
 ## Configuración
 

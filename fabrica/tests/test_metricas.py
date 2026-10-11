@@ -22,7 +22,8 @@ def test_metricas_basicas():
     final = 1.02 * 0.99 * 1.02 * 0.99
     assert m["retorno_pct"] == pytest.approx((final - 1) * 100)
     assert m["max_drawdown_pct"] == pytest.approx(1.0)
-    assert m["ret_dd"] == pytest.approx(m["retorno_pct"] / 1.0)
+    # ganancia/caída con tamaño fijo: (2 - 1 + 2 - 1)% / 1%
+    assert m["ret_dd"] == pytest.approx(2.0) and m["retorno_simple_pct"] == pytest.approx(2.0)
     assert m["expectativa_r"] == pytest.approx(0.5)
     assert m["racha_perdedora"] == 1
 
