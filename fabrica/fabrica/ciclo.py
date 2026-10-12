@@ -22,6 +22,21 @@ from .motor import correr
 log = logging.getLogger(__name__)
 
 EXAMINADOS = DATA_DIR / "examinados.json"
+CONTADOR = DATA_DIR / "pruebas_acumuladas.json"
+
+
+def _acumuladas() -> int:
+    """Cuántas estrategias se probaron en TODOS los ciclos. Cuantas más se prueban, más exigente
+    se pone el Deflated Sharpe (más pruebas = más chances de encontrar algo por suerte)."""
+    try:
+        return int(json.loads(CONTADOR.read_text())["total"])
+    except Exception:
+        return 0
+
+
+def _sumar_acumuladas(n: int) -> None:
+    CONTADOR.parent.mkdir(parents=True, exist_ok=True)
+    CONTADOR.write_text(json.dumps({"total": _acumuladas() + n}))
 
 
 def _leer_examinados() -> set:
@@ -73,7 +88,9 @@ def correr_ciclo(cfg: dict, conjuntos: dict[tuple[str, str], pd.DataFrame] | Non
                 df = D.cargar(s, tf)
                 if df is not None and len(df) > 2000:
                     conjuntos[(s, tf)] = df
-    caches = {k: Cache(v) for k, v in conjuntos.items()}
+    # se puede pasar velas o Cache ya armados (así no se duplica memoria)
+    caches = {k: (v if isinstance(v, Cache) else Cache(v)) for k, v in conjuntos.items()}
+    conjuntos = {k: c.df for k, c in caches.items()}
     info_cortes = {k: cortes(v, k[1], cfg["datos"]["dias_examen_final"]) for k, v in conjuntos.items()}
     examinados = _leer_examinados()
     embudo: Counter = Counter()
@@ -84,7 +101,9 @@ def correr_ciclo(cfg: dict, conjuntos: dict[tuple[str, str], pd.DataFrame] | Non
         cache = caches[(sim, tf)]
         fin_is, fin_oos, n = info_cortes[(sim, tf)]
         avisar(f"🏭 Fábrica trabajando en {sim.split(':')[0]} {tf}…")
+        acumuladas = _acumuladas()
         gen = evolucionar(cache, 0, fin_is, cfg, tf, semilla=semilla, costo_rt=costo_rt)
+        _sumar_acumuladas(gen["probadas"])
         embudo["inventadas"] += gen["probadas"]
         base = linea_base_suerte(df, tf, fin_is, cfg, semilla)
         otros = [(caches[k], 0, info_cortes[k][1]) for k in conjuntos if k[1] == tf and k[0] != sim]
@@ -109,7 +128,7 @@ def correr_ciclo(cfg: dict, conjuntos: dict[tuple[str, str], pd.DataFrame] | Non
             # Varianza teórica 1/T: las pruebas del genético son muy parecidas entre sí (no independientes),
             # así que usar la varianza entre ellas exageraría la corrección. La línea base de arriba ya
             # mide la suerte del genético directamente.
-            dsr = M.deflated_sharpe(m_is["sharpe"], m_is["operaciones"], gen["probadas"])
+            dsr = M.deflated_sharpe(m_is["sharpe"], m_is["operaciones"], acumuladas + gen["probadas"])
             if dsr < f["deflated_sharpe_min"]:
                 motivos["Sharpe explicable por suerte (deflated)"] += 1
                 continue
@@ -175,5 +194,5 @@ def texto_embudo(inf: dict) -> str:
     ]
     if not inf["ganadoras"]:
         lineas.append("Esta vez ninguna estrategia fue confiable. Es normal: el sistema te cuida de "
-                      "estrategias que solo ganaron de casualidad. La semana que viene prueba de nuevo.")
+                      "estrategias que solo ganaron de casualidad. En la próxima vuelta prueba de nuevo.")
     return "\n".join(lineas)

@@ -3,9 +3,12 @@
 
 datos:
   exchange: binanceusdm          # Binance Futures USDT-M (datos públicos, no pide cuenta)
-  simbolos: [BTC/USDT:USDT, ETH/USDT:USDT, SOL/USDT:USDT, BNB/USDT:USDT, XRP/USDT:USDT]
-  temporalidades: [1h, 4h]        # se puede agregar 15m (más lento)
+  simbolos: [BTC/USDT:USDT, ETH/USDT:USDT, SOL/USDT:USDT, BNB/USDT:USDT, XRP/USDT:USDT,
+             DOGE/USDT:USDT, ADA/USDT:USDT, AVAX/USDT:USDT, LINK/USDT:USDT]
+  temporalidades: [15m, 1h, 4h]
   desde: "2020-01-01"
+  desde_por_tf:
+    15m: "2023-01-01"             # 15 minutos: menos años para no llenar la memoria
   dias_examen_final: 180          # últimos 6 meses guardados aparte, sin tocar
 
 costos:
@@ -55,6 +58,8 @@ liga:
 
 agenda:
   minutos_entre_chequeos: 15
-  dia_ciclo_semanal: 6            # 0 = lunes ... 6 = domingo
+  ciclo_continuo: true            # la fábrica trabaja 24/7: termina una vuelta y empieza otra
+  pausa_entre_ciclos_min: 20
+  dia_ciclo_semanal: 6            # solo se usa si ciclo_continuo es false (0 = lunes ... 6 = domingo)
   hora_resumen_noche: 22          # hora de Uruguay
   zona_horaria: America/Montevideo

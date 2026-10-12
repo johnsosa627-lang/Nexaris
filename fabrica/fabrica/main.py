@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -23,14 +24,40 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("ganancias")
 
 
+class Caches:
+    """Arma los indicadores solo para las monedas que usan los bots de la liga (ahorra memoria)."""
+
+    def __init__(self):
+        self.velas: dict = {}
+        self._c: dict = {}
+
+    def poner(self, clave, df):
+        self.velas[clave] = df
+        self._c.pop(clave, None)
+
+    def get(self, clave, defecto=None):
+        if clave not in self.velas:
+            return defecto
+        if clave not in self._c:
+            self._c[clave] = Cache(self.velas[clave])
+        return self._c[clave]
+
+    def items(self):
+        return ((k, self.get(k)) for k in self.velas)
+
+
 class Sistema:
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.tg = Telegram(cfg["telegram"]["token"], cfg["telegram"]["chat_id"])
         self.liga = L.leer()
-        self.caches: dict = {}
+        self.caches = Caches()
+        self.ciclos_hoy = 0
+        self.probadas_hoy = 0
+        self.dia_contador = ""
         self.lock = threading.RLock()
         self.ciclo_corriendo = False
+        self.fin_ultimo_ciclo = 0.0
         self.ultimo_ciclo: dict | None = None
         self.ultimo_resumen = ""
         self.ultimo_ciclo_dia = ""
@@ -48,9 +75,9 @@ class Sistema:
         for s in d["simbolos"]:
             for tf in d["temporalidades"]:
                 try:
-                    df = D.actualizar(s, tf, d["desde"])
+                    df = D.actualizar(s, tf, d.get("desde_por_tf", {}).get(tf, d["desde"]))
                     with self.lock:
-                        self.caches[(s, tf)] = Cache(df)
+                        self.caches.poner((s, tf), df)
                 except Exception as ex:
                     log.warning("no se pudieron bajar datos de %s %s: %s", s, tf, ex)
 
@@ -64,22 +91,29 @@ class Sistema:
     def _ciclo(self) -> None:
         self.ciclo_corriendo = True
         try:
-            conjuntos = {k: c.df for k, c in self.caches.items() if len(c.df) > 2000}
+            conjuntos = {k: v for k, v in self.caches.velas.items() if len(v) > 2000}
             inf = C.correr_ciclo(self.cfg, conjuntos, avisar=log.info)
             self.ultimo_ciclo = inf
+            self.ciclos_hoy += 1
+            self.probadas_hoy += inf["embudo"].get("inventadas", 0)
             with self.lock:
                 nuevos = L.agregar_candidatos(self.liga, inf["ganadoras"], self.cfg)
                 avisos = L.revisar(self.liga, self.caches, self.cfg)
                 L.guardar(self.liga)
-            txt = C.texto_embudo(inf)
+            continuo = self.cfg["agenda"].get("ciclo_continuo", False)
             if nuevos:
-                txt += f"\n\n🆕 {len(nuevos)} bot(s) nuevo(s) entran como suplentes."
-            self.tg.enviar("\n".join([txt] + avisos))
+                txt = C.texto_embudo(inf) + f"\n\n🆕 {len(nuevos)} bot(s) nuevo(s) entran como suplentes."
+                self.tg.enviar("\n".join([txt] + avisos))
+            elif avisos:
+                self.tg.enviar("\n".join(avisos))
+            elif not continuo:  # en modo 24/7 no se avisa cada vuelta vacía (iría en el resumen de la noche)
+                self.tg.enviar(C.texto_embudo(inf))
         except Exception as ex:
             log.exception("falló el ciclo")
             self.tg.enviar(f"⚠️ La fábrica tuvo un error: {type(ex).__name__}. Lo vuelvo a intentar más adelante.")
         finally:
             self.ciclo_corriendo = False
+            self.fin_ultimo_ciclo = time.time()
 
     # ---------------- liga y cuenta ----------------
     def chequeo(self) -> None:
@@ -182,10 +216,14 @@ class Sistema:
         with self.lock:
             cu = L.cuenta_papel(self.liga, self.caches, self.cfg)
         dif = round(cu["capital"] - cu["inicial"], 2)
-        return (f"🌙 Resumen del día\n"
-                f"Hoy: {cu['hoy_ops']} operaciones, {cu['hoy_ganadas']} bien. Resultado: {cu['hoy_usdt']} USDT.\n"
-                f"Desde el principio: {cu['capital']} USDT ({'+' if dif >= 0 else ''}{dif}).\n"
-                f"Bots trabajando: {len(self.liga['titulares'])}. Todo en modo práctica.")
+        txt = (f"🌙 Resumen del día\n"
+               f"Hoy: {cu['hoy_ops']} operaciones, {cu['hoy_ganadas']} bien. Resultado: {cu['hoy_usdt']} USDT.\n"
+               f"Desde el principio: {cu['capital']} USDT ({'+' if dif >= 0 else ''}{dif}).\n"
+               f"Bots trabajando: {len(self.liga['titulares'])} titulares, {len(self.liga['suplentes'])} suplentes.\n"
+               f"🏭 Fábrica hoy: {self.ciclos_hoy} vueltas, {self.probadas_hoy} estrategias probadas.\n"
+               f"Todo en modo práctica.")
+        self.ciclos_hoy = self.probadas_hoy = 0
+        return txt
 
     def correr(self) -> None:
         if self.cfg["live"]:
@@ -205,8 +243,12 @@ class Sistema:
                 if ahora.hour == self.cfg["agenda"]["hora_resumen_noche"] and self.ultimo_resumen != hoy:
                     self.ultimo_resumen = hoy
                     self.tg.enviar(self.resumen_noche())
-                if ahora.weekday() == self.cfg["agenda"]["dia_ciclo_semanal"] and self.ultimo_ciclo_dia != hoy \
-                        and ahora.hour >= 3:
+                ag = self.cfg["agenda"]
+                if ag.get("ciclo_continuo", False):
+                    # 24/7: apenas termina una vuelta (y pasa la pausa), arranca otra
+                    if not self.ciclo_corriendo and time.time() - self.fin_ultimo_ciclo >= ag.get("pausa_entre_ciclos_min", 30) * 60:
+                        self.lanzar_ciclo()
+                elif ahora.weekday() == ag["dia_ciclo_semanal"] and self.ultimo_ciclo_dia != hoy and ahora.hour >= 3:
                     self.ultimo_ciclo_dia = hoy
                     self.lanzar_ciclo()
                 self.chequeo()
@@ -218,6 +260,10 @@ class Sistema:
 
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        os.nice(10)  # prioridad baja: si n8n necesita el procesador, n8n va primero
+    except Exception:
+        pass
     Sistema(cargar()).correr()
 
 

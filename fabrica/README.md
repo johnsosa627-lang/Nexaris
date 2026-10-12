@@ -5,7 +5,7 @@
 
 ## Qué hace, explicado simple
 
-1. **Baja los precios** de Binance Futures (BTC, ETH, SOL, BNB, XRP; velas de 1 h y 4 h). Son datos públicos y no piden cuenta.
+1. **Baja los precios** de Binance Futures (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK; velas de 15 min, 1 h y 4 h). Son datos públicos y no piden cuenta.
 2. **La fábrica inventa miles de estrategias** (recetas de cuándo comprar o vender) y las mejora con un algoritmo genético: las mejores se cruzan y mutan.
 3. **Coladores** (cada uno descarta las que fallan):
    - métricas mínimas (200+ operaciones, profit factor > 1,3, ganancia/caída > 3, caída máxima < 20 %, curva pareja, SQN > 2, gana en la mayoría de los años);
@@ -20,7 +20,7 @@
    - Un suplente sube a titular cuando demuestra en vivo (30+ operaciones) que anda bien.
    - Un bot **se jubila solo** si cae más de lo peor que había previsto el Monte Carlo, o si rinde mucho menos de lo prometido (prueba estadística). Nunca por un par de días malos.
 6. **Frenos de la cuenta**: 1 % de riesgo por operación, freno diario (3 % o 2 pérdidas en el día) y freno total (−15 % desde el máximo: se apaga y avisa).
-7. **Cada semana** (domingo) la fábrica corre un ciclo nuevo con los datos nuevos.
+7. **La fábrica trabaja 24/7**: termina una vuelta, descansa 20 minutos y arranca otra (`ciclo_continuo`). Lleva la cuenta de todas las estrategias probadas en la historia y el *Deflated Sharpe* se vuelve más exigente cuantas más se prueban. Corre con prioridad baja para no molestar a n8n.
 
 Nunca usa martingala, nunca duplica después de perder, y toda operación tiene stop-loss.
 
@@ -28,6 +28,10 @@ Nunca usa martingala, nunca duplica después de perder, y toda operación tiene 
 
 `/estado` `/hoy` `/bots` `/fabrica` `/pausar` `/reanudar` `/cerrar_todo` `/informe` `/ciclo` `/ayuda`.
 Todas las noches a las 22 h (hora de Uruguay) manda un resumen. Solo le hace caso a tu chat.
+
+## Actualizar (en el servidor)
+
+`bash /root/actualizar_ganancias.sh` baja la última versión de GitHub y reinicia el sistema conservando los datos y el Telegram.
 
 ## Instalar en Easypanel
 

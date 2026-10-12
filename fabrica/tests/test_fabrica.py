@@ -20,6 +20,7 @@ from fabrica.motor import correr
 @pytest.fixture(autouse=True)
 def data_tmp(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "EXAMINADOS", tmp_path / "examinados.json")
+    monkeypatch.setattr(C, "CONTADOR", tmp_path / "contador.json")
     monkeypatch.setattr(C, "DATA_DIR", tmp_path)
     monkeypatch.setattr(L, "ARCHIVO", tmp_path / "liga.json")
 

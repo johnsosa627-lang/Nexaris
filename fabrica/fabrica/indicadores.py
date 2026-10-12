@@ -70,8 +70,14 @@ class Cache:
         self.df = df.reset_index(drop=True)
         self._c: dict = {}
 
+    MAX = 80  # tope de indicadores guardados, para no llenar la memoria en ciclos largos
+
     def get(self, clave: tuple):
         if clave not in self._c:
+            if len(self._c) >= self.MAX:
+                for k in list(self._c)[: self.MAX // 2]:
+                    if k[0] not in ("close", "atr"):
+                        del self._c[k]
             self._c[clave] = self._calc(clave)
         return self._c[clave]
 
