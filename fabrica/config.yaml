@@ -1,0 +1,133 @@
+# ===========================================================
+#  FÁBRICA DE ESTRATEGIAS — todos los números editables
+# ===========================================================
+
+datos:
+  # Carpeta donde se guardan las velas y el funding (en el servidor: volumen persistente)
+  carpeta: datos
+  simbolos: [BTC/USDT:USDT, ETH/USDT:USDT, SOL/USDT:USDT, BNB/USDT:USDT, XRP/USDT:USDT]
+  temporalidades: [15m, 1h, 4h]
+  # Desde qué fecha bajar historia
+  desde: "2021-01-01"
+  # Últimos meses guardados aparte como "examen final" (no se usan para crear estrategias)
+  meses_examen: 6
+
+costos:
+  # Comisión por lado en % (Binance Futures taker = 0,05%)
+  comision_pct: 0.05
+  # Deslizamiento (slippage) por lado en %: diferencia entre el precio esperado y el real
+  slippage_pct: 0.02
+  # Slippage extra en los stops: al atravesar el stop, la orden a mercado se llena algo peor
+  slippage_stop_pct: 0.03
+  # Cobrar/pagar funding cada 8 horas según la historia real
+  usar_funding: true
+
+riesgo:
+  capital_inicial: 15
+  # % del capital que se puede perder en una operación si toca el stop-loss
+  riesgo_por_operacion_pct: 1.0
+  # Riesgo abierto total máximo (suma de todas las posiciones)
+  riesgo_total_max_pct: 3.0
+  apalancamiento_max: 3
+  # Freno diario
+  perdida_max_dia_pct: 3.0
+  perdidas_seguidas_max_dia: 2
+  # Freno total: se apaga si la cuenta cae este % desde su máximo
+  caida_max_desde_pico_pct: 15.0
+
+salida:
+  # Carpeta donde se guardan los resultados de cada ciclo
+  carpeta: resultados
+
+generador:
+  # Cuántas estrategias por generación y cuántas generaciones (más = mejor búsqueda, más lento)
+  poblacion: 200
+  generaciones: 30
+  elite_pct: 10
+  prob_cruce: 0.7
+  prob_mutacion: 0.4
+  # Máximo de filtros además del disparador (estrategias simples)
+  max_filtros: 2
+  # Parte de los datos de trabajo usada para crear; el resto es "fuera de muestra"
+  fraccion_creacion: 0.7
+  # Cuántas de las mejores pasan al colador
+  candidatas: 30
+  # Semilla para poder repetir exactamente un ciclo (vacío = al azar)
+  semilla:
+  # Núcleos de CPU a usar (0 = todos)
+  procesos: 0
+
+filtros:
+  # 1) Métricas mínimas (sobre todo el período de trabajo)
+  min_operaciones: 200
+  min_profit_factor: 1.3
+  min_ret_dd: 3.0
+  max_drawdown_pct: 20.0
+  min_estabilidad: 0.8
+  min_pct_anios_positivos: 50
+  # 2) Fuera de muestra y walk-forward
+  oos_min_profit_factor: 1.1
+  wf_ventanas: 5
+  wf_variantes: 10
+  wf_min_pct_ventanas_positivas: 60
+  wf_min_profit_factor: 1.1
+  # 3) Monte Carlo
+  montecarlo_simulaciones: 1000
+  montecarlo_confianza_pct: 95
+  montecarlo_saltear_pct: 10
+  montecarlo_multiplicador_comision: 2
+  # La peor caída del 5% de simulaciones más malas no puede pasar de este %
+  montecarlo_max_drawdown_p95_pct: 25
+  # 4) Sobreajuste: mover un poco los números
+  robustez_variantes: 30
+  robustez_min_pct_rentables: 80
+  robustez_min_ret_dd_relativo: 0.5
+  # 5) Otras monedas y temporalidad vecina
+  otras_monedas_min_pct: 50
+  temporalidad_vecina_min: 1
+  # 6) Entrar una vela tarde
+  retraso_min_profit_factor: 1.1
+  # 7) Anti-suerte
+  antisuerte_repeticiones: 2
+  antisuerte_margen: 1.2
+  dsr_min: 0.95
+
+examen:
+  # Correr el examen final automáticamente al terminar cada ciclo
+  automatico: true
+  # Para aprobar en los meses guardados (que la fábrica nunca vio):
+  min_operaciones: 10
+  min_profit_factor: 1.1
+  # Además: tiene que ganar plata y no caer más que la peor caída prevista por Monte Carlo
+
+liga:
+  # Bots operando a la vez (titulares) y en práctica (suplentes)
+  max_titulares: 3
+  max_suplentes: 12
+  # Los titulares no pueden parecerse entre sí más que esto (correlación de resultados diarios)
+  max_correlacion: 0.5
+  # Ascenso: el suplente necesita esta cantidad de operaciones en vivo (y el titular también)...
+  min_operaciones_ascenso: 30
+  # ...y ser claramente mejor (prueba estadística t de Welch)
+  t_minimo_ascenso: 2.0
+  # Jubilación por alejarse del backtest: se evalúa recién con esta cantidad de operaciones
+  min_operaciones_control: 20
+  # ...y si está a más de 2,5 "desvíos" por debajo de lo prometido
+  z_jubilacion: -2.5
+  # Velas de historia para calcular las señales en vivo
+  velas_historia: 1000
+  # Cada cuántos segundos vigila los stops por software
+  intervalo_vigilancia: 30
+
+servicio:
+  zona_horaria: America/Montevideo
+  # Hora local del resumen nocturno por Telegram
+  hora_resumen: 22
+  # Horas en UTC de las tareas diarias
+  hora_actualizar_datos_utc: 0
+  hora_revision_utc: 1
+  # Ciclo semanal de la fábrica (0 = lunes ... 6 = domingo), hora UTC
+  dia_ciclo_semanal: 6
+  hora_ciclo_utc: 3
+  # Núcleos para el ciclo (dejá libres para n8n y el resto del servidor)
+  procesos_ciclo: 2

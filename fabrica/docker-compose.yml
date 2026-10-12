@@ -1,0 +1,10 @@
+services:
+  fabrica:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - fabrica_datos:/data
+
+volumes:
+  fabrica_datos:

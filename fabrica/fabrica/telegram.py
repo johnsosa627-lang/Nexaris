@@ -1,0 +1,95 @@
+"""Telegram: comandos en español y avisos. Solo responde al TELEGRAM_CHAT_ID configurado."""
+import logging
+import threading
+import time
+
+import requests
+
+log = logging.getLogger("fabrica")
+
+
+class Telegram:
+    def __init__(self, token: str, chat_id: str):
+        self.token = token or ""
+        self.chat_id = str(chat_id or "").strip()
+        self.url = f"https://api.telegram.org/bot{self.token}"
+        self.comandos = {}
+        self._offset = None
+
+    @property
+    def activo(self) -> bool:
+        return bool(self.token and self.chat_id)
+
+    def enviar(self, texto: str):
+        log.info("[Telegram] %s", texto.replace("\n", " | ")[:500])
+        if not self.activo:
+            return
+        for parte in [texto[i:i + 3900] for i in range(0, len(texto), 3900)] or [""]:
+            for intento in range(3):
+                try:
+                    r = requests.post(f"{self.url}/sendMessage", json={"chat_id": self.chat_id, "text": parte}, timeout=15)
+                    if r.status_code == 200:
+                        break
+                    log.warning("Telegram respondió %s: %s", r.status_code, r.text[:200])
+                except Exception as e:  # noqa: BLE001
+                    log.warning("No se pudo enviar a Telegram: %s", e)
+                time.sleep(2 * (intento + 1))
+
+    def registrar(self, comando: str, funcion):
+        """`funcion(argumentos: str) -> str` con la respuesta."""
+        self.comandos[comando] = funcion
+
+    def procesar(self, update: dict):
+        mensaje = update.get("message") or update.get("edited_message") or {}
+        chat = str((mensaje.get("chat") or {}).get("id", ""))
+        texto = (mensaje.get("text") or "").strip()
+        if not texto:
+            return
+        if chat != self.chat_id:
+            log.warning("Telegram: mensaje ignorado de un chat no autorizado (%s)", chat)
+            return
+        partes = texto.split(maxsplit=1)
+        comando = partes[0].split("@")[0].lower()
+        argumentos = partes[1].strip().lower() if len(partes) > 1 else ""
+        funcion = self.comandos.get(comando)
+        if not funcion:
+            respuesta = "Comandos: " + " ".join(sorted(self.comandos))
+        else:
+            try:
+                respuesta = funcion(argumentos)
+            except Exception as e:  # noqa: BLE001
+                log.exception("Error en el comando %s", comando)
+                respuesta = f"⚠️ Error con {comando}: {e}"
+        if respuesta:
+            self.enviar(respuesta)
+
+    def _descartar_pendientes(self):
+        """Ignora comandos viejos acumulados mientras el servicio estaba apagado (ej: un /cerrar_todo)."""
+        try:
+            r = requests.get(f"{self.url}/getUpdates", params={"offset": -1, "timeout": 0}, timeout=15)
+            res = r.json().get("result", [])
+            if res:
+                self._offset = res[-1]["update_id"] + 1
+        except Exception as e:  # noqa: BLE001
+            log.warning("Telegram: %s", e)
+
+    def _bucle(self):
+        self._descartar_pendientes()
+        while True:
+            try:
+                params = {"timeout": 25}
+                if self._offset is not None:
+                    params["offset"] = self._offset
+                r = requests.get(f"{self.url}/getUpdates", params=params, timeout=35)
+                for update in r.json().get("result", []):
+                    self._offset = update["update_id"] + 1
+                    self.procesar(update)
+            except Exception as e:  # noqa: BLE001
+                log.warning("Telegram: %s", e)
+                time.sleep(5)
+
+    def iniciar(self):
+        if not self.activo:
+            log.warning("Telegram desactivado: faltan TELEGRAM_TOKEN o TELEGRAM_CHAT_ID")
+            return
+        threading.Thread(target=self._bucle, name="telegram", daemon=True).start()
