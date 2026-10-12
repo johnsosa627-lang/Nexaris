@@ -1,0 +1,60 @@
+# Configuración de la fábrica de bots. Todos los números se pueden cambiar acá.
+# (Las claves secretas NO van acá: van en variables de entorno de Easypanel.)
+
+datos:
+  exchange: binanceusdm          # Binance Futures USDT-M (datos públicos, no pide cuenta)
+  simbolos: [BTC/USDT:USDT, ETH/USDT:USDT, SOL/USDT:USDT, BNB/USDT:USDT, XRP/USDT:USDT]
+  temporalidades: [1h, 4h]        # se puede agregar 15m (más lento)
+  desde: "2020-01-01"
+  dias_examen_final: 180          # últimos 6 meses guardados aparte, sin tocar
+
+costos:
+  comision_lado: 0.0004           # 0,04 % por lado (taker)
+  slippage_lado: 0.0002           # 0,02 % por lado
+  funding_8h: 0.0001              # 0,01 % cada 8 h en contra (estimación conservadora)
+
+riesgo:
+  riesgo_por_operacion: 0.01      # 1 % del capital
+  riesgo_total_abierto: 0.03      # máximo 3 % entre todos los bots
+  apalancamiento_max: 3
+  freno_diario_pct: 0.03          # si pierde 3 % en el día, no opera más hoy
+  freno_diario_perdidas: 2        # o 2 pérdidas en el día
+  freno_total_pct: 0.15           # si baja 15 % desde el máximo, cierra todo y se apaga
+
+generador:
+  poblacion: 200
+  generaciones: 15
+  max_condiciones: 3
+  semilla: null                   # null = al azar cada ciclo
+
+filtros:
+  min_operaciones: 200            # en el período de creación (in-sample)
+  min_operaciones_oos: 40
+  profit_factor: 1.3
+  ret_dd: 3.0
+  max_drawdown: 0.20
+  estabilidad: 0.8
+  sqn: 2.0
+  frac_anios_ganadores: 0.6
+  caida_pf_oos_max: 0.35          # en out-of-sample el PF no puede caer más de 35 %
+  montecarlo_simulaciones: 1000
+  montecarlo_saltear: 0.10
+  montecarlo_costo_extra: 1.0     # hasta el doble de costos
+  perturbacion_variantes: 12
+  perturbacion_frac_ok: 0.7
+  multimercado_frac_ok: 0.5
+  anti_suerte_rondas: 3           # cuántas fábricas "de mentira" con precios al azar
+  deflated_sharpe_min: 0.95
+
+liga:
+  max_titulares: 3                # 3 bots x 1 % = 3 % de riesgo total máximo
+  max_suplentes: 8
+  correlacion_max: 0.5
+  min_ops_para_ascender: 30
+  min_ops_para_juzgar: 30
+
+agenda:
+  minutos_entre_chequeos: 15
+  dia_ciclo_semanal: 6            # 0 = lunes ... 6 = domingo
+  hora_resumen_noche: 22          # hora de Uruguay
+  zona_horaria: America/Montevideo
