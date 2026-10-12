@@ -76,6 +76,8 @@ filtros:
   montecarlo_confianza_pct: 95
   montecarlo_saltear_pct: 10
   montecarlo_multiplicador_comision: 2
+  # La peor caída del 5% de simulaciones más malas no puede pasar de este %
+  montecarlo_max_drawdown_p95_pct: 25
   # 4) Sobreajuste: mover un poco los números
   robustez_variantes: 30
   robustez_min_pct_rentables: 80
@@ -89,3 +91,11 @@ filtros:
   antisuerte_repeticiones: 2
   antisuerte_margen: 1.2
   dsr_min: 0.95
+
+examen:
+  # Correr el examen final automáticamente al terminar cada ciclo
+  automatico: true
+  # Para aprobar en los meses guardados (que la fábrica nunca vio):
+  min_operaciones: 10
+  min_profit_factor: 1.1
+  # Además: tiene que ganar plata y no caer más que la peor caída prevista por Monte Carlo

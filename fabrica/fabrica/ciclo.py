@@ -78,7 +78,11 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
                       r["riesgo_por_operacion_pct"], r["apalancamiento_max"])
     min_ops_is = max(20, int(f["min_operaciones"] * g["fraccion_creacion"]))
     archivo = evolucionar(ev_is, rng, **_parametros_generador(g, min_ops_is))
-    candidatas = [copy.deepcopy(c) for c in mejores(archivo, g["candidatas"]) if c["fitness"] > 0]
+    # Las que ya rindieron examen en ciclos anteriores no se vuelven a evaluar (el examen es UNA sola vez)
+    examinadas = set(cfg.get("_examinadas", []))
+    previas = [c for c in mejores(archivo, len(archivo)) if c["fitness"] > 0 and _id(c) in examinadas]
+    candidatas = [copy.deepcopy(c) for c in mejores(archivo, len(archivo))
+                  if c["fitness"] > 0 and _id(c) not in examinadas][: g["candidatas"]]
 
     # Varianza del Sharpe que daría el puro azar (ninguna estrategia con ventaja real): ~1/operaciones
     ops_por_ensayo = [a["metricas"]["operaciones"] for a in archivo.values() if a["metricas"].get("operaciones", 0) >= 30]
@@ -107,7 +111,7 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
     combo = Combo(simbolo, tf, Evaluador(trabajo, fund, costos, r["riesgo_por_operacion_pct"], r["apalancamiento_max"]),
                   n_is, otros, vecinos, suerte, len(archivo), var_sr_azar)
 
-    embudo = {"inventadas": len(archivo), "candidatas": len(candidatas)}
+    embudo = {"inventadas": len(archivo), "ya_examinadas_antes": len(previas), "candidatas": len(candidatas)}
     embudo.update({clave: 0 for clave, _, _ in FILTROS})
     for cand in candidatas:
         pasos = aplicar_filtros(cand, combo, f, rng)
@@ -175,12 +179,19 @@ def ciclo(cfg: dict, simbolos=None, tfs=None, procesos=None) -> dict:
     procesos = procesos if procesos is not None else cfg["generador"].get("procesos", 0)
     procesos = procesos or os.cpu_count() or 1
     inicio = datetime.now(timezone.utc)
+    from .examen import examinar_ciclo, ya_examinadas
+    cfg = {**cfg, "_examinadas": sorted(ya_examinadas(cfg))}
+    tareas = [(cfg, s, t, sem) for _, s, t, sem in tareas]
     if procesos > 1 and len(tareas) > 1:
         with ProcessPoolExecutor(max_workers=min(procesos, len(tareas))) as pool:
             resultados = list(pool.map(_trabajo, tareas))
     else:
         resultados = [procesar_combo(*t) for t in tareas]
     resumen = guardar_ciclo(cfg, resultados, inicio, semilla)
+    if cfg.get("examen", {}).get("automatico", True):
+        from .informes import informe_ciclo
+        resumen["examenes"] = examinar_ciclo(cfg, resumen["carpeta"])
+        resumen["informe"] = informe_ciclo(cfg, resumen["carpeta"])
     return resumen
 
 
@@ -188,11 +199,11 @@ def guardar_ciclo(cfg, resultados, inicio, semilla) -> dict:
     nombre = inicio.strftime("ciclo_%Y%m%d_%H%M%S")
     carpeta = os.path.join(cfg["salida"]["carpeta"], nombre)
     os.makedirs(os.path.join(carpeta, "aprobadas"), exist_ok=True)
-    embudo = {"inventadas": 0, "candidatas": 0, **{clave: 0 for clave, _, _ in FILTROS}}
+    embudo = {"inventadas": 0, "ya_examinadas_antes": 0, "candidatas": 0, **{clave: 0 for clave, _, _ in FILTROS}}
     aprobadas = []
     for r in resultados:
         for k, v in r.get("embudo", {}).items():
-            embudo[k] += v
+            embudo[k] = embudo.get(k, 0) + v
         for a in r["aprobadas"]:
             a["ciclo"] = nombre
             aprobadas.append(a)
@@ -255,7 +266,7 @@ def main():
         for seccion, valores in MODO_RAPIDO.items():
             cfg[seccion].update(valores)
     resumen = ciclo(cfg, args.simbolos, args.tfs, args.procesos)
-    print("\n" + resumen["texto"])
+    print("\n" + resumen.get("informe", resumen["texto"]))
     print(f"\nResultados guardados en {resumen['carpeta']}")
 
 

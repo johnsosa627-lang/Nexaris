@@ -98,4 +98,4 @@ def test_describir():
          "salidas": {"stop_tipo": "pct", "stop": 2.0, "tp_tipo": "pct", "tp": 4.0, "trailing": 0.0, "max_velas": 48}}
     t = E.describir(e)
     assert "Solo compra" in t and "máximo de las últimas 20 velas" in t and "1.5 veces" in t
-    assert "2.0%" in t and "48 velas" in t
+    assert "2.0%" in t and "48 velas" in t and "ATR" not in t

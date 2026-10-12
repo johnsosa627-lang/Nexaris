@@ -33,9 +33,17 @@ def test_ciclo_con_tendencias_reales_aprueba_y_guarda(tmp_path):
     assert os.path.exists(os.path.join(carpeta, "embudo.json")) and os.path.exists(os.path.join(carpeta, "resumen.txt"))
     with open(os.path.join(carpeta, "aprobadas", r["aprobadas"][0] + ".json"), encoding="utf-8") as f:
         a = json.load(f)
-    assert a["explicacion"] and a["examen"] is None and a["corte_examen_ms"]
+    assert a["explicacion"] and a["examen"]["id"] == a["id"] and a["corte_examen_ms"]
     assert a["montecarlo"]["drawdown_p95_pct"] > 0 and a["antisuerte"]["dsr"] >= 0.95
     assert "aprobada" in r["texto"]
+    # examen final automático + informe
+    assert len(r["examenes"]) == len(r["aprobadas"])
+    assert "INFORME DE LA FÁBRICA" in r["informe"] and "Examen final" in r["informe"]
+    assert os.path.exists(os.path.join(carpeta, "informe.txt"))
+    # un segundo ciclo igual no vuelve a examinar las mismas estrategias
+    r2 = ciclo(cfg, simbolos=SIMBOLOS[:1], tfs=["1h"], procesos=1)
+    assert r2["embudo"]["ya_examinadas_antes"] >= len(r["aprobadas"])
+    assert not set(r2["aprobadas"]) & set(r["aprobadas"])
 
 
 def test_ciclo_con_precios_al_azar_no_aprueba_nada(tmp_path):

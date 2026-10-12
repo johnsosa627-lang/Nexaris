@@ -67,3 +67,19 @@ def escribir_mercados(carpeta, simbolos, phi, n=20000, semilla=0):
             ruta = datos.ruta_velas(carpeta, s, tf)
             os.makedirs(os.path.dirname(ruta), exist_ok=True)
             df.to_csv(ruta, index=False, compression="gzip")
+
+
+def serie_con_cambio(n, corte, phi_antes, phi_despues, semilla=0, vol=0.006, paso=H, t0=T0):
+    """Como serie_mercado, pero el comportamiento cambia a partir de la vela `corte`."""
+    rng = np.random.default_rng(semilla)
+    ruido = rng.normal(0, vol, n)
+    r = np.empty(n)
+    r[0] = ruido[0]
+    for i in range(1, n):
+        r[i] = (phi_antes if i < corte else phi_despues) * r[i - 1] + ruido[i]
+    c = 100 * np.exp(np.cumsum(r))
+    o = np.concatenate([[100.0], c[:-1]])
+    h = np.maximum(o, c) * (1 + np.abs(rng.normal(0, vol / 3, n)))
+    l = np.minimum(o, c) * (1 - np.abs(rng.normal(0, vol / 3, n)))
+    return pd.DataFrame({"ts": t0 + np.arange(n, dtype="int64") * paso, "open": o, "high": h, "low": l, "close": c,
+                         "volume": rng.lognormal(10, 0.4, n)})

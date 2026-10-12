@@ -365,4 +365,7 @@ def describir(est: dict) -> str:
         salida += f", stop móvil a {unidad(s['trailing'])}"
     if s["max_velas"]:
         salida += f", y cierra sí o sí tras {s['max_velas']} velas"
-    return textos[est["lado"]] + salida + ". (ATR = tamaño promedio de las velas.)"
+    texto = textos[est["lado"]] + salida + "."
+    if "ATR" in texto:
+        texto += " (ATR = tamaño promedio de las velas.)"
+    return texto

@@ -69,7 +69,7 @@ CFG = {"min_operaciones": 50, "min_profit_factor": 1.3, "min_ret_dd": 3, "max_dr
        "min_estabilidad": 0.8, "min_pct_anios_positivos": 50, "oos_min_profit_factor": 1.1, "wf_ventanas": 4,
        "wf_variantes": 3, "wf_min_pct_ventanas_positivas": 60, "wf_min_profit_factor": 1.1,
        "montecarlo_simulaciones": 200, "montecarlo_confianza_pct": 95, "montecarlo_saltear_pct": 10,
-       "montecarlo_multiplicador_comision": 2, "robustez_variantes": 6, "robustez_min_pct_rentables": 80,
+       "montecarlo_multiplicador_comision": 2, "montecarlo_max_drawdown_p95_pct": 35, "robustez_variantes": 6, "robustez_min_pct_rentables": 80,
        "robustez_min_ret_dd_relativo": 0.5, "otras_monedas_min_pct": 50, "temporalidad_vecina_min": 1,
        "retraso_min_profit_factor": 1.1, "antisuerte_margen": 1.2, "dsr_min": 0.95}
 
@@ -115,3 +115,5 @@ def test_filtros_individuales():
     assert not F.f7_antisuerte(cand, _combo(v, suerte=cand["fitness"]), CFG, rng)[0]
     # exigir demasiado en Monte Carlo
     assert not F.f3_montecarlo(cand, combo, {**CFG, "montecarlo_confianza_pct": 100.1}, rng)[0]
+    # caída prevista por Monte Carlo demasiado grande
+    assert not F.f3_montecarlo(cand, combo, {**CFG, "montecarlo_max_drawdown_p95_pct": 1}, rng)[0]

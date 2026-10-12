@@ -139,7 +139,9 @@ def f3_montecarlo(c, combo, f, rng):
     mc = montecarlo(c["_ops"], combo.ev.costos.comision_pct, f["montecarlo_simulaciones"],
                     f["montecarlo_saltear_pct"], f["montecarlo_multiplicador_comision"], rng)
     c["montecarlo"] = mc
-    return _ok(mc["pct_ganadoras"] >= f["montecarlo_confianza_pct"], **{k: round(v, 2) for k, v in mc.items()})
+    return _ok(mc["pct_ganadoras"] >= f["montecarlo_confianza_pct"]
+               and mc["drawdown_p95_pct"] <= f.get("montecarlo_max_drawdown_p95_pct", 25.0),
+               **{k: round(v, 2) for k, v in mc.items()})
 
 
 def f4_sobreajuste(c, combo, f, rng):

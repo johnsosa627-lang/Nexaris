@@ -10,7 +10,7 @@ y las que ganaron por suerte, y pone a operar solo las mejores (primero con plat
 | 1 | Cuentas y claves que tenés que crear | ⏳ falta la verificación de identidad en Binance |
 | 2 | Datos + motor de pruebas | ✅ listo |
 | 3 | Fábrica de estrategias + filtros + anti-suerte | ✅ listo |
-| 4 | Examen final + informes | pendiente |
+| 4 | Examen final + informes | ✅ listo |
 | 5 | Liga de bots en testnet + Telegram + Easypanel | pendiente |
 | 6 | Pasar a real con 15 dólares (solo si lo pedís) | pendiente |
 
@@ -52,6 +52,7 @@ python -m fabrica.datos revisar                       # controlar calidad de los
 python -m fabrica.ejemplo --simbolo XRP/USDT:USDT --tf 1h   # probar el motor con una estrategia de ejemplo
 python -m fabrica.ciclo --rapido                      # ciclo chico de la fábrica (para probar)
 python -m fabrica.ciclo                               # ciclo completo (todas las monedas y temporalidades)
+python -m fabrica.examen                              # (re)mostrar el informe del último ciclo
 ```
 
 La estrategia de ejemplo (cruce de medias) solo sirve para ver que el motor funciona.
@@ -90,9 +91,37 @@ pareja; castiga las complicadas. Solo usa el 70% más viejo de los datos de trab
    Además, el **Deflated Sharpe Ratio** (que corrige por la cantidad de estrategias probadas) tiene que
    ser ≥0,95.
 
+Además, en Monte Carlo la caída del peor 5% de las simulaciones no puede pasar de 25%
+(si no, en vivo terminaría chocando con el freno total de la cuenta).
+
 Los resultados de cada ciclo quedan en `resultados/ciclo_FECHA/`: `resumen.txt` (en lenguaje simple),
 `embudo.json` (cuántas pasaron cada filtro y por qué se descartó cada una) y `aprobadas/*.json`.
-El examen final con los 6 meses guardados es la etapa 4.
+
+## Etapa 4: examen final e informes
+
+**Examen final** (`fabrica/examen.py`): al terminar cada ciclo, cada estrategia aprobada se prueba
+**una sola vez** en los últimos 6 meses, que la fábrica nunca vio. Para aprobar tiene que:
+- hacer al menos 10 operaciones,
+- ganar plata, con profit factor ≥1,1,
+- no caer más de lo que Monte Carlo había previsto como peor caso.
+
+Si reprueba, queda **descartada para siempre**: el resultado queda anotado en `resultados/examenes.json`
+y aunque la fábrica la vuelva a inventar en otro ciclo, no se repite ni se reajusta.
+Si aprueba, entra al **banco** (`resultados/banco/`), de donde saldrán los suplentes de la liga. En el
+banco se guarda también lo que "prometía" el backtest, para comparar en vivo y jubilarla si se aleja.
+
+**Informes** (`fabrica/informes.py`): cada ciclo deja un `informe.txt` en lenguaje simple con el embudo
+de filtros, el resultado del examen y una ficha de cada estrategia nueva, por ejemplo:
+
+```
+📈 Estrategia 96784cfa4e — XRP, velas de 1 hora
+Qué hace: Compra cuando el precio supera el máximo de las últimas 10 velas. Vende en corto en la
+situación opuesta. Stop-loss a 3.0% del precio de entrada, toma ganancia a 4.0%, stop móvil a 1.0%.
+En el pasado: 1292 operaciones, ganó el 47% de las veces. ...
+Lo malo: su peor caída fue de 3.5% y llegó a perder 9 veces seguidas. Eso es normal...
+✅ Examen final (meses nunca vistos): APROBÓ. 195 operaciones, resultado +9.3%, peor caída 4.2%.
+```
+(ejemplo con datos inventados)
 
 **Cuánto tarda**: con 4 núcleos, un ciclo completo (5 monedas × 3 temporalidades) tarda alrededor de
 10 a 20 minutos.
