@@ -94,10 +94,21 @@ def examinar(cfg: dict, registro: dict) -> dict:
             "fecha_ingreso": resultado["fecha"],
             # Lo que "promete" el backtest: se usa en vivo para detectar si se aleja de lo esperado
             "retornos_backtest": [round(float(x), 6) for x in trabajo.operaciones["retorno"]],
+            "r_backtest": [round(float(x), 4) for x in trabajo.operaciones["r"]],
+            # Resultado por día: sirve para medir cuánto se parecen dos estrategias (correlación)
+            "retornos_diarios": retornos_diarios(trabajo.operaciones),
         })
     log.info("Examen %s (%s %s): %s %s", registro["id"], registro["simbolo"], registro["tf"],
              "APROBADA" if resultado["aprobada"] else "REPROBADA", "; ".join(motivos))
     return resultado
+
+
+def retornos_diarios(ops) -> dict:
+    if len(ops) == 0:
+        return {}
+    import pandas as pd
+    dias = pd.to_datetime(ops["salida_ts"], unit="ms", utc=True).dt.strftime("%Y-%m-%d")
+    return {d: round(float(v), 6) for d, v in ops["retorno"].groupby(dias.values).sum().items()}
 
 
 def examinar_ciclo(cfg: dict, carpeta_ciclo: str) -> list:

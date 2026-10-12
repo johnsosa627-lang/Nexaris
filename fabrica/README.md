@@ -11,7 +11,7 @@ y las que ganaron por suerte, y pone a operar solo las mejores (primero con plat
 | 2 | Datos + motor de pruebas | ✅ listo |
 | 3 | Fábrica de estrategias + filtros + anti-suerte | ✅ listo |
 | 4 | Examen final + informes | ✅ listo |
-| 5 | Liga de bots en testnet + Telegram + Easypanel | pendiente |
+| 5 | Liga de bots en testnet + Telegram + Easypanel | ✅ código listo · falta instalar con tus claves |
 | 6 | Pasar a real con 15 dólares (solo si lo pedís) | pendiente |
 
 ## Etapa 2: qué hace
@@ -128,6 +128,68 @@ Lo malo: su peor caída fue de 3.5% y llegó a perder 9 veces seguidas. Eso es n
 
 **Comprobado con datos inventados**: si se esconde una tendencia real en los precios, la fábrica la
 encuentra y la aprueba; si los precios son puro azar, no aprueba nada.
+
+## Etapa 5: la liga de bots, Telegram y el servidor
+
+**La liga** (`fabrica/liga.py`):
+- **Titulares** (hasta 3): operan de verdad (en modo testnet, en la cuenta Demo de Binance). Se eligen
+  para que no se parezcan entre sí (correlación < 0,5) y uno por moneda.
+- **Suplentes** (hasta 12): las estrategias nuevas del banco practican en paralelo, simuladas con los
+  precios reales. Siempre simuladas: Binance permite una sola posición por moneda en una cuenta.
+- **Ascenso**: un suplente reemplaza a un titular solo si los dos tienen 30+ operaciones en vivo y el
+  suplente es claramente mejor (prueba estadística). Una buena racha de pocos días no alcanza.
+- **Jubilación automática**: si su caída en vivo supera la peor que había previsto Monte Carlo, o si
+  después de 20+ operaciones sus resultados están muy por debajo de lo prometido (prueba estadística).
+  Perder varias veces seguidas es normal y NO jubila a nadie.
+- Cada bot en vivo usa exactamente las mismas reglas que el motor de pruebas (comprobado con un test que
+  compara operación por operación).
+
+**Protección de la cuenta** (`fabrica/cuenta.py`):
+- 1% de riesgo por operación y máximo 3% abierto entre todas.
+- El riesgo se calcula sobre el capital de `config.yaml` (15 USDT): **las ganancias nunca aumentan
+  solas lo que se arriesga**. Para subirlo, lo cambiás vos a mano.
+- Freno diario: si pierde 3% en el día o 2 operaciones seguidas, no abre más hasta mañana.
+- Freno total: si la cuenta cae 15% desde su máximo, cierra todo, se apaga y te avisa.
+- Antes de cada operación verifica el mínimo de Binance; si con 15 USDT no alcanza, no opera y te avisa.
+- En testnet, el bot simula una cuenta de 15 USDT aunque la cuenta Demo tenga mucho más saldo.
+
+**Automático** (`fabrica/servicio.py`): actualiza los datos todos los días, revisa ascensos y
+jubilaciones todos los días, corre la fábrica todos los domingos (y la primera vez apenas tiene datos),
+y te manda un resumen todas las noches a las 22 (hora de Uruguay).
+
+**Telegram** (solo te responde a vos):
+
+| Comando | Qué hace |
+|---|---|
+| `/estado` | prendido o apagado, cuánta plata hay, si es práctica o real |
+| `/hoy` | qué ganó o perdió hoy |
+| `/bots` | titulares y suplentes, cómo le va a cada uno |
+| `/fabrica` | qué hizo la fábrica en el último ciclo |
+| `/informe` | informe semanal |
+| `/pausar`, `/reanudar` | dejar de abrir operaciones nuevas / seguir |
+| `/cerrar_todo` | cerrar todas las operaciones y pausar |
+
+**Modos** (variable `MODO`):
+- `papel`: todo simulado con precios reales. No necesita claves. **Sirve para instalarlo ya.**
+- `testnet`: los titulares operan en la cuenta Demo de Binance (plata de mentira).
+- `real`: plata real. Necesita `LIVE_TRADING=true` **y** confirmar por Telegram con `/confirmar_real`.
+
+## Instalarlo en Easypanel
+
+1. En Easypanel: tu proyecto → **+ Service** → **App** → nombre `fabrica`.
+2. **Source** → GitHub: `johnsosa627-lang` / `Nexaris`, la rama donde está este código,
+   **Build Path: `/fabrica`**.
+3. **Build** → **Dockerfile**.
+4. **Environment** → pegá el contenido de `.env.example` y completá `TELEGRAM_TOKEN` y
+   `TELEGRAM_CHAT_ID`. Dejá `MODO=papel` hasta tener las claves de Demo Trading.
+5. **Mounts** → **Add Volume**: nombre `fabrica-datos`, Mount Path `/data`.
+6. **Deploy**. Te llega "🤖 Fábrica de bots prendida" por Telegram.
+7. La primera vez baja toda la historia de Binance y corre el primer ciclo de la fábrica: puede tardar
+   entre 30 y 60 minutos. Te avisa cuando termina.
+8. Cuando tengas las claves de Demo Trading: cambiá `MODO=testnet`, pegá `BINANCE_API_KEY` y
+   `BINANCE_API_SECRET`, y tocá **Deploy** de nuevo. La liga y la historia se conservan (están en el volumen).
+
+También hay un `docker-compose.yml` por si preferís instalarlo como "Compose" (usa el archivo `.env`).
 
 ## Configuración
 

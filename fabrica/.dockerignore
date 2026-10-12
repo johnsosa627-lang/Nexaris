@@ -1,0 +1,7 @@
+.env
+datos/
+resultados/
+vivo/
+tests/
+__pycache__/
+.pytest_cache/

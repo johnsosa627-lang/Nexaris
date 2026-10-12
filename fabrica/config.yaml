@@ -99,3 +99,35 @@ examen:
   min_operaciones: 10
   min_profit_factor: 1.1
   # Además: tiene que ganar plata y no caer más que la peor caída prevista por Monte Carlo
+
+liga:
+  # Bots operando a la vez (titulares) y en práctica (suplentes)
+  max_titulares: 3
+  max_suplentes: 12
+  # Los titulares no pueden parecerse entre sí más que esto (correlación de resultados diarios)
+  max_correlacion: 0.5
+  # Ascenso: el suplente necesita esta cantidad de operaciones en vivo (y el titular también)...
+  min_operaciones_ascenso: 30
+  # ...y ser claramente mejor (prueba estadística t de Welch)
+  t_minimo_ascenso: 2.0
+  # Jubilación por alejarse del backtest: se evalúa recién con esta cantidad de operaciones
+  min_operaciones_control: 20
+  # ...y si está a más de 2,5 "desvíos" por debajo de lo prometido
+  z_jubilacion: -2.5
+  # Velas de historia para calcular las señales en vivo
+  velas_historia: 1000
+  # Cada cuántos segundos vigila los stops por software
+  intervalo_vigilancia: 30
+
+servicio:
+  zona_horaria: America/Montevideo
+  # Hora local del resumen nocturno por Telegram
+  hora_resumen: 22
+  # Horas en UTC de las tareas diarias
+  hora_actualizar_datos_utc: 0
+  hora_revision_utc: 1
+  # Ciclo semanal de la fábrica (0 = lunes ... 6 = domingo), hora UTC
+  dia_ciclo_semanal: 6
+  hora_ciclo_utc: 3
+  # Núcleos para el ciclo (dejá libres para n8n y el resto del servidor)
+  procesos_ciclo: 2
