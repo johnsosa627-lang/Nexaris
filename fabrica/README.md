@@ -12,7 +12,7 @@ y las que ganaron por suerte, y pone a operar solo las mejores (primero con plat
 | 3 | Fábrica de estrategias + filtros + anti-suerte | ✅ listo |
 | 4 | Examen final + informes | ✅ listo |
 | 5 | Liga de bots en testnet + Telegram + Easypanel | ✅ código listo · falta instalar con tus claves |
-| 6 | Pasar a real con 15 dólares (solo si lo pedís) | pendiente |
+| 6 | Pasar a real con el capital de `config.yaml` (100 USDT; solo si lo pedís) | pendiente |
 
 ## Etapa 2: qué hace
 
@@ -146,12 +146,12 @@ encuentra y la aprueba; si los precios son puro azar, no aprueba nada.
 
 **Protección de la cuenta** (`fabrica/cuenta.py`):
 - 1% de riesgo por operación y máximo 3% abierto entre todas.
-- El riesgo se calcula sobre el capital de `config.yaml` (15 USDT): **las ganancias nunca aumentan
+- El riesgo se calcula sobre el capital de `config.yaml` (100 USDT): **las ganancias nunca aumentan
   solas lo que se arriesga**. Para subirlo, lo cambiás vos a mano.
 - Freno diario: si pierde 3% en el día o 2 operaciones seguidas, no abre más hasta mañana.
 - Freno total: si la cuenta cae 15% desde su máximo, cierra todo, se apaga y te avisa.
-- Antes de cada operación verifica el mínimo de Binance; si con 15 USDT no alcanza, no opera y te avisa.
-- En testnet, el bot simula una cuenta de 15 USDT aunque la cuenta Demo tenga mucho más saldo.
+- Antes de cada operación verifica el mínimo de Binance; si con el capital no alcanza, no opera y te avisa.
+- En testnet, el bot simula una cuenta de 100 USDT aunque la cuenta Demo tenga mucho más saldo.
 
 **Automático** (`fabrica/servicio.py`): actualiza los datos todos los días, revisa ascensos y
 jubilaciones todos los días, corre la fábrica todos los domingos (y la primera vez apenas tiene datos),

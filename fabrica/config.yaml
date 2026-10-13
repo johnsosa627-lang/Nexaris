@@ -23,7 +23,7 @@ costos:
   usar_funding: true
 
 riesgo:
-  capital_inicial: 15
+  capital_inicial: 100
   # % del capital que se puede perder en una operación si toca el stop-loss
   riesgo_por_operacion_pct: 1.0
   # Riesgo abierto total máximo (suma de todas las posiciones)

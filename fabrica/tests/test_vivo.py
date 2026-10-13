@@ -33,9 +33,10 @@ class MercadoFalso:
         return float(np.floor(q * 10) / 10)
 
 
-def cfg_prueba(**liga):
+def cfg_prueba(capital=15, **liga):
     cfg = cargar_config()
     cfg["liga"].update(liga)
+    cfg["riesgo"]["capital_inicial"] = capital  # los casos de prueba están pensados con 15 USDT
     return cfg
 
 
@@ -327,3 +328,15 @@ def test_titular_que_nunca_llega_al_minimo_deja_su_lugar(tmp_path):
     assert bot["rol"] == "suplente" and bot["no_operable"]
     assert liga.e["bots"]["bot2"]["rol"] == "titular"
     assert any("dejo su lugar" in m.lower() for m in mensajes)
+
+
+def test_con_100_usdt_si_puede_operar_btc_y_eth(tmp_path):
+    class MercadoMinimos(MercadoFalso):
+        def limites(self, simbolo):
+            return {"BTC/USDT:USDT": (0.001, 100.0), "ETH/USDT:USDT": (0.001, 20.0)}.get(simbolo, (0.1, 5.0))
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(capital=100), mercado=MercadoMinimos())
+    stop_ancho = {**TENDENCIA, "salidas": {**TENDENCIA["salidas"], "stop_tipo": "pct", "stop": 5.0}}
+    liga.sincronizar_banco([registro(1, "BTC/USDT:USDT", fitness=9),
+                            registro(2, "ETH/USDT:USDT", estrategia=stop_ancho, fitness=8)])
+    liga.completar_titulares()
+    assert sorted(b["id"] for b in liga.bots("titular")) == ["bot1", "bot2"]  # 1% de 100 / 5% = 20 USDT: alcanza
