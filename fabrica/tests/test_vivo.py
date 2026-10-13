@@ -187,11 +187,12 @@ def test_freno_total_cierra_todo_y_apaga(tmp_path):
 
 def test_titular_respeta_minimos_y_riesgo_total(tmp_path):
     v = serie_mercado(400, 2, 0.2)
-    merc = MercadoFalso({("AAA/USDT:USDT", "1h"): v}, minimo=(0.1, 500.0))  # mínimo imposible con 15 USDT
+    merc = MercadoFalso({("AAA/USDT:USDT", "1h"): v}, minimo=(0.1, 5.0))
     liga, mensajes, t = liga_papel(tmp_path, mercado=merc)
     liga.sincronizar_banco([registro(1)])
     liga.completar_titulares()
     bot = liga.e["bots"]["bot1"]
+    merc.minimo = (0.1, 500.0)  # Binance sube el mínimo: imposible con 15 USDT
     liga._abrir(bot, 1, 1.0, v.iloc[-1].to_dict())
     assert bot["posicion"] is None and bot["omitidas"] == 1 and any("no opera" in m for m in mensajes)
     merc.minimo = (0.1, 5.0)
@@ -295,3 +296,34 @@ def test_primero_las_estrictas(tmp_path):
     liga.sincronizar_banco([flojo, registro(2, "BBB/USDT:USDT", fitness=5)])
     liga.completar_titulares()
     assert liga.e["bots"]["bot2"]["rol"] == "titular" and liga.e["bots"]["bot1"]["rol"] == "suplente"
+
+
+def test_no_elige_titulares_que_no_pueden_operar_con_15_usdt(tmp_path):
+    class MercadoMinimos(MercadoFalso):
+        def limites(self, simbolo):
+            return {"BTC/USDT:USDT": (0.001, 100.0), "ETH/USDT:USDT": (0.001, 20.0)}.get(simbolo, (0.1, 5.0))
+    liga, _, _ = liga_papel(tmp_path, mercado=MercadoMinimos())
+    stop_ancho = {**TENDENCIA, "salidas": {**TENDENCIA["salidas"], "stop_tipo": "pct", "stop": 5.0}}
+    liga.sincronizar_banco([
+        registro(1, "BTC/USDT:USDT", fitness=9),                      # mínimo 100 > 45 (3x de 15): imposible
+        registro(2, "ETH/USDT:USDT", estrategia=stop_ancho, fitness=8),  # stop 5%: 0,15/0,05 = 3 USDT < 20
+        registro(3, "XRP/USDT:USDT", fitness=7),
+    ])
+    liga.completar_titulares()
+    assert [b["id"] for b in liga.bots("titular")] == ["bot3"]
+
+
+def test_titular_que_nunca_llega_al_minimo_deja_su_lugar(tmp_path):
+    v = serie_mercado(400, 2, 0.2)
+    merc = MercadoFalso({("AAA/USDT:USDT", "1h"): v}, minimo=(0.1, 5.0))
+    liga, mensajes, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=1), mercado=merc)
+    liga.sincronizar_banco([registro(1, fitness=9), registro(2, "BBB/USDT:USDT", fitness=5)])
+    liga.completar_titulares()
+    bot = liga.e["bots"]["bot1"]
+    for _ in range(3):
+        liga._abrir(bot, 1, 50.0, v.iloc[-1].to_dict())  # ATR enorme: stop muy lejos, no llega al mínimo
+    assert bot["posicion"] is None and bot["omitidas_seguidas"] == 3
+    liga.revisar()
+    assert bot["rol"] == "suplente" and bot["no_operable"]
+    assert liga.e["bots"]["bot2"]["rol"] == "titular"
+    assert any("dejo su lugar" in m.lower() for m in mensajes)
