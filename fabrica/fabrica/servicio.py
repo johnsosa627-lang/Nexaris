@@ -41,7 +41,12 @@ class Servicio:
         self.datos_en_curso = None
         self._procesado = {}
         self._ultima_vigilancia = 0.0
+        self._ultimo_radar = 0.0
         self.liga.e.setdefault("tareas", {})
+        self.radar = None
+        if cfg.get("radar", {}).get("activo"):
+            from .radar import Radar
+            self.radar = Radar(cfg, self.liga.e, mercado, enviar, reloj)
 
     # ------------------------------------------------------------------ bucle
     def paso(self):
@@ -50,6 +55,10 @@ class Servicio:
         if self.reloj() - self._ultima_vigilancia >= self.cfg["liga"]["intervalo_vigilancia"]:
             self._ultima_vigilancia = self.reloj()
             self.liga.vigilar()
+        if self.radar and self.reloj() - self._ultimo_radar >= self.cfg["radar"]["intervalo_min"] * 60:
+            self._ultimo_radar = self.reloj()
+            self.radar.revisar()
+            self.liga.guardar()
         self._agenda()
 
     def correr(self):
@@ -185,6 +194,7 @@ class Servicio:
         tg.registrar("/reanudar", self.cmd_reanudar)
         tg.registrar("/cerrar_todo", self.cmd_cerrar_todo)
         tg.registrar("/confirmar_real", self.cmd_confirmar_real)
+        tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
 
@@ -223,6 +233,7 @@ class Servicio:
 
 AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/hoy — resultado de hoy\n"
          "/bots — titulares y suplentes\n/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
+         "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/pausar — no abrir operaciones nuevas\n/reanudar — seguir\n/cerrar_todo — cerrar todo y pausar")
 
 

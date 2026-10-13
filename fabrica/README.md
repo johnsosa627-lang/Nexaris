@@ -166,6 +166,7 @@ y te manda un resumen todas las noches a las 22 (hora de Uruguay).
 | `/bots` | titulares y suplentes, cómo le va a cada uno |
 | `/fabrica` | qué hizo la fábrica en el último ciclo |
 | `/informe` | informe semanal |
+| `/radar` | qué pasa fuera del mercado (noticias, datos económicos, Bitcoin) |
 | `/pausar`, `/reanudar` | dejar de abrir operaciones nuevas / seguir |
 | `/cerrar_todo` | cerrar todas las operaciones y pausar |
 
@@ -173,6 +174,18 @@ y te manda un resumen todas las noches a las 22 (hora de Uruguay).
 - `papel`: todo simulado con precios reales. No necesita claves. **Sirve para instalarlo ya.**
 - `testnet`: los titulares operan en la cuenta Demo de Binance (plata de mentira).
 - `real`: plata real. Necesita `LIVE_TRADING=true` **y** confirmar por Telegram con `/confirmar_real`.
+
+## Radar externo 🛰 (lo que pasa fuera del gráfico)
+
+Las estrategias solo miran el precio. El radar (`fabrica/radar.py`) mira afuera cada 5 minutos y
+**protege**: no intenta adivinar el precio, evita entrar en medio del caos.
+- **Datos económicos fuertes de EE.UU.** (inflación, Fed, empleo): avisa 1 hora antes y pausa las
+  entradas nuevas desde 30 min antes hasta 30 min después.
+- **Bitcoin se mueve 3% o más en 15 min**: avisa y pausa las entradas nuevas 1 hora.
+- **Noticias graves de cripto** (hackeos, quiebras, retiros frenados): avisa con el link y pausa 1 hora.
+- **Noticias importantes** (SEC, ETF, Fed, regulación) y **Miedo y Codicia extremo**: solo avisa.
+- Las operaciones abiertas no se tocan (siguen con su stop) y los suplentes siguen practicando.
+- Comando `/radar` para ver el estado. Todo se ajusta en `config.yaml`, sección `radar`.
 
 ## Modo exploración 🧪 (solo práctica)
 
