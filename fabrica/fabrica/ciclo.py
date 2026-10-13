@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 import numpy as np
 
 from .config import cargar_config
-from .datos import alinear_funding, cargar_funding, cargar_velas, dividir_examen
+from .datos import (SIMBOLO_LIDER, alinear_funding, cargar_funding, cargar_miedo_codicia, cargar_velas,
+                    dividir_examen, externos_para)
 from .estrategia import describir
 from .filtros import FILTROS, Combo, aplicar_filtros, precios_al_azar
 from .generador import Evaluador, evolucionar, mejores
@@ -34,6 +35,7 @@ class Mercado:
     def __init__(self, cfg):
         self.cfg = cfg
         self._cache = {}
+        self._externos = {}
 
     def trabajo(self, simbolo, tf):
         clave = (simbolo, tf)
@@ -41,16 +43,24 @@ class Mercado:
             carpeta = self.cfg["datos"]["carpeta"]
             velas = cargar_velas(carpeta, simbolo, tf)
             trabajo, _, corte = dividir_examen(velas, self.cfg["datos"]["meses_examen"])
-            fund = alinear_funding(trabajo["ts"].to_numpy(), cargar_funding(carpeta, simbolo), tf) if len(trabajo) else None
+            funding = cargar_funding(carpeta, simbolo)
+            fund = alinear_funding(trabajo["ts"].to_numpy(), funding, tf) if len(trabajo) else None
             self._cache[clave] = (trabajo, fund, corte)
+            self._externos[clave] = externos_para(trabajo["ts"].to_numpy(), tf, funding,
+                                                  cargar_velas(carpeta, SIMBOLO_LIDER, tf), cargar_miedo_codicia(carpeta))
         return self._cache[clave]
+
+    def externos(self, simbolo, tf) -> dict:
+        self.trabajo(simbolo, tf)
+        return self._externos[(simbolo, tf)]
 
     def evaluador(self, simbolo, tf):
         trabajo, fund, _ = self.trabajo(simbolo, tf)
         if len(trabajo) < MIN_VELAS:
             return None
         r = self.cfg["riesgo"]
-        return Evaluador(trabajo, fund, Costos.desde_config(self.cfg), r["riesgo_por_operacion_pct"], r["apalancamiento_max"])
+        return Evaluador(trabajo, fund, Costos.desde_config(self.cfg), r["riesgo_por_operacion_pct"], r["apalancamiento_max"],
+                         self.externos(simbolo, tf))
 
 
 def _parametros_generador(g, min_ops):
@@ -74,8 +84,10 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
     n_is = int(len(trabajo) * g["fraccion_creacion"])
     costos = Costos.desde_config(cfg)
     r = cfg["riesgo"]
+    ext = mercado.externos(simbolo, tf)
+    ext_is = {k: v[:n_is] for k, v in ext.items()}
     ev_is = Evaluador(trabajo.iloc[:n_is], None if fund is None else fund[:n_is], costos,
-                      r["riesgo_por_operacion_pct"], r["apalancamiento_max"])
+                      r["riesgo_por_operacion_pct"], r["apalancamiento_max"], ext_is)
     min_ops_is = max(20, int(f["min_operaciones"] * g["fraccion_creacion"]))
     archivo = evolucionar(ev_is, rng, **_parametros_generador(g, min_ops_is))
     # Las que ya rindieron examen en ciclos anteriores no se vuelven a evaluar (el examen es UNA sola vez)
@@ -94,7 +106,8 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
             mejores_fit, rng_s = [], np.random.default_rng(semilla + 1)
             for _ in range(f["antisuerte_repeticiones"]):
                 velas_azar, fund_azar = precios_al_azar(trabajo.iloc[:n_is], rng_s, None if fund is None else fund[:n_is])
-                ev_azar = Evaluador(velas_azar, fund_azar, costos, r["riesgo_por_operacion_pct"], r["apalancamiento_max"])
+                # Los datos externos quedan en su orden real: con precios mezclados, no tienen relación con el precio
+                ev_azar = Evaluador(velas_azar, fund_azar, costos, r["riesgo_por_operacion_pct"], r["apalancamiento_max"], ext_is)
                 arch = evolucionar(ev_azar, rng_s, **_parametros_generador(g, min_ops_is))
                 mejores_fit.append(max(a["fitness"] for a in arch.values()))
             suerte_cache.update(fitness_max=float(max(mejores_fit)), repeticiones=len(mejores_fit))
@@ -108,7 +121,7 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
         return [(t, e) for t in VECINAS.get(tf, []) if t in cfg["datos"]["temporalidades"]
                 for e in [mercado.evaluador(simbolo, t)] if e is not None]
 
-    combo = Combo(simbolo, tf, Evaluador(trabajo, fund, costos, r["riesgo_por_operacion_pct"], r["apalancamiento_max"]),
+    combo = Combo(simbolo, tf, Evaluador(trabajo, fund, costos, r["riesgo_por_operacion_pct"], r["apalancamiento_max"], ext),
                   n_is, otros, vecinos, suerte, len(archivo), var_sr_azar)
 
     embudo = {"inventadas": len(archivo), "ya_examinadas_antes": len(previas), "candidatas": len(candidatas)}

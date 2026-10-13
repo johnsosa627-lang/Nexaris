@@ -15,9 +15,10 @@ class Evaluador:
     """Corre estrategias sobre un conjunto de velas fijo (reutiliza los indicadores)."""
 
     def __init__(self, velas: pd.DataFrame, funding: Optional[np.ndarray], costos: Costos,
-                 riesgo_pct: float = 1.0, apalancamiento_max: float = 3.0):
+                 riesgo_pct: float = 1.0, apalancamiento_max: float = 3.0, externos: Optional[dict] = None):
         self.velas = velas.reset_index(drop=True)
-        self.ctx = Contexto(self.velas)
+        self.externos = externos
+        self.ctx = Contexto(self.velas, externos)
         self.atr = self.ctx.ind("atr", 14).to_numpy()
         self.funding = funding
         self.costos = costos

@@ -41,6 +41,27 @@ class Mercado:
         t = self.cliente.fetch_ticker(simbolo)
         return float(t.get("last") or t.get("close"))
 
+    def externos_vivo(self, simbolo: str, tf: str, velas: pd.DataFrame, ahora_ms: int, http_get=None) -> dict:
+        """Funding, cierre de Bitcoin y Miedo y Codicia alineados con `velas` (los mismos datos que usó la fábrica)."""
+        from .datos import SIMBOLO_LIDER, externos_para
+        crudo = self.cliente.fetch_funding_rate_history(simbolo, limit=200)
+        funding = pd.DataFrame([{"ts": int(x["timestamp"]), "tasa": float(x["fundingRate"])} for x in crudo],
+                               columns=["ts", "tasa"])
+        lider = velas if simbolo == SIMBOLO_LIDER else self.velas(SIMBOLO_LIDER, tf, len(velas), ahora_ms)
+        return externos_para(velas["ts"].to_numpy(), tf, funding, lider, self._miedo_codicia(ahora_ms, http_get))
+
+    def _miedo_codicia(self, ahora_ms: int, http_get=None) -> pd.DataFrame:
+        guardado = getattr(self, "_fng", None)
+        if guardado is not None and ahora_ms - guardado[0] < 3_600_000:
+            return guardado[1]
+        import requests
+        r = (http_get or requests.get)("https://api.alternative.me/fng/?limit=30&format=json", timeout=15)
+        r.raise_for_status()
+        df = pd.DataFrame([{"ts": int(x["timestamp"]) * 1000, "valor": float(x["value"])} for x in r.json()["data"]],
+                          columns=["ts", "valor"]).sort_values("ts").reset_index(drop=True)
+        self._fng = (ahora_ms, df)
+        return df
+
     def limites(self, simbolo: str) -> Tuple[Optional[float], Optional[float]]:
         self._cargar()
         lim = self.cliente.market(simbolo).get("limits", {})

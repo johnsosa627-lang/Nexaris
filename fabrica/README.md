@@ -64,7 +64,10 @@ aprender a descartar.
 **Cómo se arma una estrategia** (`fabrica/estrategia.py`): siempre es simple.
 - 1 **disparador** (el momento de entrar): cruce de medias, precio que cruza su media, cruce del MACD,
   ruptura de máximos (Donchian), rebote en Bollinger o RSI que cruza un nivel.
-- 0 a 2 **filtros** (condiciones que tienen que cumplirse): tendencia, RSI, ADX, volumen, +DI/-DI.
+- 0 a 2 **filtros** (condiciones que tienen que cumplirse): tendencia, RSI, ADX, volumen, +DI/-DI, y
+  tres **datos de afuera del gráfico**: el *funding* (si los que apuestan a la suba pagan de más), la
+  tendencia de **Bitcoin** (el líder del mercado) y el índice de **Miedo y Codicia**. Pasan por los mismos
+  filtros que todo: si de verdad ayudan a decidir, la fábrica los elige; si no, los descarta.
 - **Salidas**: stop-loss (siempre) en % o ATR, take-profit, stop móvil, salida por tiempo.
 - Puede operar solo compras, solo ventas en corto, o ambas (la venta usa la regla espejo).
 - Cada una tiene una explicación en español, por ejemplo: *"Compra cuando el precio supera el máximo
