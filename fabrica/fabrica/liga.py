@@ -246,6 +246,9 @@ class Liga:
             return "modo real sin confirmar por Telegram"
         if self.e["cuenta"]["freno_dia"]:
             return "freno diario: " + self.e["cuenta"]["freno_dia"]
+        radar = self.e.get("radar") or {}
+        if radar.get("hasta", 0) > self.reloj():
+            return "radar externo: " + radar.get("motivo", "")
         return None
 
     def _controlar_cuenta(self):

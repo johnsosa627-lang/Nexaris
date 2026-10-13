@@ -162,3 +162,33 @@ exploracion:
   examen:
     min_operaciones: 5
     min_profit_factor: 1.0
+
+radar:
+  # Radar externo: mira lo que pasa FUERA del gráfico, avisa por Telegram y pausa las entradas nuevas
+  # mientras dura el peligro (las operaciones abiertas siguen con su stop). No predice el precio.
+  activo: true
+  intervalo_min: 5
+  # Datos económicos fuertes de EE.UU. (inflación, Fed, empleo)
+  calendario: true
+  aviso_previo_min: 60
+  minutos_antes: 30
+  minutos_despues: 30
+  # Movimiento brusco de Bitcoin
+  bitcoin: true
+  volatilidad_btc_pct: 3.0
+  volatilidad_ventana_min: 15
+  pausa_volatilidad_min: 60
+  # Noticias de cripto (titulares de las últimas 3 horas)
+  noticias: true
+  fuentes_noticias:
+    - https://cointelegraph.com/rss
+    - https://www.coindesk.com/arc/outboundfeeds/rss/
+  pausa_noticia_grave_min: 60
+  palabras_graves: [hack, hacked, exploit, exploited, bankrupt, bankruptcy, insolvent, insolvency,
+                    halts withdrawals, suspends withdrawals, withdrawals paused, depeg, collapse, rug pull]
+  palabras_importantes: [SEC, ETF, Fed, FOMC, interest rate, rate cut, rate hike, ban, regulation,
+                         lawsuit, liquidation, liquidations, Binance, CPI, inflation]
+  # Índice de Miedo y Codicia (solo avisa en los extremos)
+  miedo: true
+  miedo_extremo: 10
+  codicia_extrema: 90

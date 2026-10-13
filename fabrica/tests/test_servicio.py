@@ -25,6 +25,7 @@ class Hilo:
 
 def armar(tmp_path, ahora):
     cfg = cfg_prueba()
+    cfg["radar"]["activo"] = False  # el radar tiene sus propios tests (sin internet)
     cfg["datos"]["carpeta"] = str(tmp_path / "datos")
     cfg["salida"]["carpeta"] = str(tmp_path / "res")
     v = serie_mercado(3000, 1, 0.2, t0=int(ahora * 1000) - 2000 * H)
@@ -120,6 +121,7 @@ def test_comandos(tmp_path):
     assert "Prendido de nuevo" in mandar("/reanudar confirmo") and not liga.e["apagado"]
     assert "Cerré todas" in mandar("/cerrar_todo") and liga.e["pausado"]
     assert "todavía no corrió" in mandar("/fabrica")
+    assert "apagado" in mandar("/radar")
     for c in ("/hoy", "/bots", "/informe", "/ayuda"):
         assert mandar(c)
     n = len(respuestas)
