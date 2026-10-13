@@ -28,17 +28,24 @@ TRAILING = {"pct": [1.0, 2.0, 3.0], "atr": [1.5, 2.0, 3.0, 4.0]}
 MAX_VELAS = [12, 24, 48, 96, 200]
 
 DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce"]
-FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro"]
+FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro",
+           "funding_filtro", "btc_tendencia", "miedo_codicia"]
+# Datos de afuera del gráfico: la fábrica los prueba igual que todo; si no sirven, los descarta
+EXTERNOS = {"funding_filtro", "btc_tendencia", "miedo_codicia"}
+FUNDING_NIVEL = [-0.01, 0.0, 0.01, 0.03]   # % por cada 8 horas
+FNG_NIVEL = [20, 30, 40, 50, 60, 70, 80]
 
 
 # ------------------------------------------------------------------ cálculo de indicadores con memoria
 class Contexto:
     """Guarda los indicadores ya calculados para no repetirlos entre estrategias."""
 
-    def __init__(self, velas: pd.DataFrame):
+    def __init__(self, velas: pd.DataFrame, externos: dict = None):
         self.velas = velas.reset_index(drop=True)
         self.o, self.h, self.l, self.c, self.v = (self.velas[k] for k in ("open", "high", "low", "close", "volume"))
         self._cache = {}
+        self.externos = {k: pd.Series(np.asarray(v, dtype=float)) for k, v in (externos or {}).items()
+                         if v is not None and len(v) == len(self.velas)}
 
     def ind(self, *clave):
         if clave not in self._cache:
@@ -73,6 +80,10 @@ class Contexto:
             return ind.sma(self.v, k[1])
         if t == "atr":
             return ind.atr(self.h, self.l, self.c, k[1])
+        if t == "ext":  # dato externo (si falta, todo NaN: la condición no se cumple nunca)
+            return self.externos.get(k[1], pd.Series(np.full(len(self.velas), np.nan)))
+        if t == "ext_ema":
+            return self.ind("ext", k[1]).ewm(span=k[2], adjust=False, min_periods=k[2]).mean()
         raise ValueError(f"Indicador desconocido: {k}")
 
 
@@ -125,6 +136,16 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
     if t == "di_filtro":
         a, b = (ctx.ind("dip", 14), ctx.ind("dim", 14)) if lado == 1 else (ctx.ind("dim", 14), ctx.ind("dip", 14))
         return (a > b).to_numpy()
+    if t == "funding_filtro":  # compra si los que apuestan a la suba no están pagando de más (y espejo)
+        f = ctx.ind("ext", "funding")
+        return (f < cond["nivel"]).to_numpy() if lado == 1 else (f > -cond["nivel"]).to_numpy()
+    if t == "btc_tendencia":  # Bitcoin como líder del mercado
+        btc, media = ctx.ind("ext", "btc"), ctx.ind("ext_ema", "btc", cond["n"])
+        return (btc > media).to_numpy() if lado == 1 else (btc < media).to_numpy()
+    if t == "miedo_codicia":
+        op = cond["op"] if lado == 1 else _invertir(cond["op"])
+        nivel = cond["nivel"] if lado == 1 else 100 - cond["nivel"]
+        return _comparar(ctx.ind("ext", "fng"), op, nivel)
     raise ValueError(f"Condición desconocida: {t}")
 
 
@@ -174,6 +195,12 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
         return {"tipo": tipo, "mult": _elegir(rng, VOL_MULT)}
     if tipo == "di_filtro":
         return {"tipo": tipo}
+    if tipo == "funding_filtro":
+        return {"tipo": tipo, "nivel": _elegir(rng, FUNDING_NIVEL)}
+    if tipo == "btc_tendencia":
+        return {"tipo": tipo, "n": _elegir(rng, MEDIAS[4:])}
+    if tipo == "miedo_codicia":
+        return {"tipo": tipo, "op": _elegir(rng, [">", "<"]), "nivel": _elegir(rng, FNG_NIVEL)}
     raise ValueError(tipo)
 
 
@@ -241,6 +268,12 @@ def _mover_condicion(rng, cond: dict) -> dict:
         c["nivel"] = _vecino(rng, ADX_NIVEL, c["nivel"])
     elif t == "volumen_filtro":
         c["mult"] = _vecino(rng, VOL_MULT, c["mult"])
+    elif t == "funding_filtro":
+        c["nivel"] = _vecino(rng, FUNDING_NIVEL, c["nivel"])
+    elif t == "btc_tendencia":
+        c["n"] = _vecino(rng, MEDIAS[4:], c["n"])
+    elif t == "miedo_codicia":
+        c["nivel"] = _vecino(rng, FNG_NIVEL, c["nivel"])
     return c
 
 
@@ -344,6 +377,13 @@ def describir_condicion(c: dict) -> str:
         return f"el volumen es mayor a {c['mult']} veces su promedio de 20 velas"
     if t == "di_filtro":
         return "los compradores dominan a los vendedores (+DI mayor que -DI)"
+    if t == "funding_filtro":
+        return f"el funding (lo que pagan los que apuestan a la suba) está por debajo de {c['nivel']}%"
+    if t == "btc_tendencia":
+        return f"Bitcoin está por encima de su media de {c['n']} velas (el líder del mercado sube)"
+    if t == "miedo_codicia":
+        return (f"el índice de Miedo y Codicia está {'por encima' if c['op'] == '>' else 'por debajo'} "
+                f"de {c['nivel']} (0 = miedo extremo, 100 = codicia extrema)")
     return t
 
 

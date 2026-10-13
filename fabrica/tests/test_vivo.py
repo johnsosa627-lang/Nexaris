@@ -340,3 +340,33 @@ def test_con_100_usdt_si_puede_operar_btc_y_eth(tmp_path):
                             registro(2, "ETH/USDT:USDT", estrategia=stop_ancho, fitness=8)])
     liga.completar_titulares()
     assert sorted(b["id"] for b in liga.bots("titular")) == ["bot1", "bot2"]  # 1% de 100 / 5% = 20 USDT: alcanza
+
+
+def test_bot_con_datos_externos_los_pide_en_vivo_y_si_fallan_no_entra(tmp_path):
+    v = serie_mercado(300, 2, 0.2)
+    pedidos = []
+
+    class MercadoExt(MercadoFalso):
+        falla = False
+
+        def externos_vivo(self, simbolo, tf, velas, ahora_ms):
+            pedidos.append(simbolo)
+            if self.falla:
+                raise ConnectionError("sin internet")
+            return {"fng": np.full(len(velas), 10.0), "funding": np.zeros(len(velas)), "btc": velas["close"].to_numpy()}
+
+    merc = MercadoExt({("AAA/USDT:USDT", "1h"): v})
+    t = {"ahora": (int(v["ts"].iloc[-1]) + H) / 1000 + 1}
+    liga, mensajes, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"], mercado=merc)
+    siempre = {"lado": "long", "reglas": [{"tipo": "miedo_codicia", "op": "<", "nivel": 30}],
+               "salidas": {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "atr", "tp": 4.0, "trailing": 0.0, "max_velas": 0}}
+    liga.sincronizar_banco([registro(1, estrategia=siempre), registro(2, "AAA/USDT:USDT")])
+    liga.procesar_velas("AAA/USDT:USDT", "1h", v)
+    assert pedidos == ["AAA/USDT:USDT"]                     # se pide una sola vez por vela y solo si hace falta
+    assert liga.e["bots"]["bot1"]["posicion"] is not None    # miedo 10 < 30: entra
+    liga.e["bots"]["bot1"]["posicion"] = None
+    merc.falla = True
+    t["ahora"] += 3600
+    v2 = pd.concat([v, v.tail(1).assign(ts=v["ts"].iloc[-1] + H)], ignore_index=True)
+    liga.procesar_velas("AAA/USDT:USDT", "1h", v2)
+    assert liga.e["bots"]["bot1"]["posicion"] is None and any("datos externos" in m for m in mensajes)

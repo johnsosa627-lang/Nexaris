@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 import numpy as np
 
 from .config import cargar_config
-from .datos import alinear_funding, cargar_funding, cargar_velas
+from .datos import (SIMBOLO_LIDER, alinear_funding, cargar_funding, cargar_miedo_codicia, cargar_velas,
+                    externos_para)
 from .generador import Evaluador
 from .motor import Costos
 
@@ -62,9 +63,12 @@ def examinar(cfg: dict, registro: dict) -> dict:
     velas = cargar_velas(carpeta, registro["simbolo"], registro["tf"])
     corte = int(registro["corte_examen_ms"])
     inicio = int(np.searchsorted(velas["ts"].to_numpy(), corte, side="left"))
-    fund = alinear_funding(velas["ts"].to_numpy(), cargar_funding(carpeta, registro["simbolo"]), registro["tf"])
+    funding = cargar_funding(carpeta, registro["simbolo"])
+    fund = alinear_funding(velas["ts"].to_numpy(), funding, registro["tf"])
+    ext = externos_para(velas["ts"].to_numpy(), registro["tf"], funding,
+                        cargar_velas(carpeta, SIMBOLO_LIDER, registro["tf"]), cargar_miedo_codicia(carpeta))
     r = cfg["riesgo"]
-    ev = Evaluador(velas, fund, Costos.desde_config(cfg), r["riesgo_por_operacion_pct"], r["apalancamiento_max"])
+    ev = Evaluador(velas, fund, Costos.desde_config(cfg), r["riesgo_por_operacion_pct"], r["apalancamiento_max"], ext)
     # Las señales usan la historia previa para "calentar" los indicadores; las operaciones empiezan en el corte
     res = ev.correr(registro["estrategia"], desde=inicio)
     m = res.metricas

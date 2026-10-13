@@ -13,9 +13,14 @@ import pandas as pd
 from .estrategia import Contexto, senales
 
 
-def senal_ultima_vela(estrategia: dict, velas: pd.DataFrame) -> Tuple[int, float]:
+def usa_externos(estrategia: dict) -> bool:
+    from .estrategia import EXTERNOS
+    return any(c["tipo"] in EXTERNOS for c in estrategia["reglas"])
+
+
+def senal_ultima_vela(estrategia: dict, velas: pd.DataFrame, externos: Optional[dict] = None) -> Tuple[int, float]:
     """(lado, atr) de la última vela cerrada: lado 1 = comprar, -1 = vender en corto, 0 = nada."""
-    ctx = Contexto(velas)
+    ctx = Contexto(velas, externos)
     largo, corto = senales(ctx, estrategia)
     atr = float(ctx.ind("atr", 14).iloc[-1])
     if largo[-1] and not corto[-1]:

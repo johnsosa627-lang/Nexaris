@@ -21,7 +21,7 @@ from typing import Callable, Optional
 import pandas as pd
 
 from . import cuenta as C
-from .bots import cierre_de_vela, niveles, resultado, revisar_vela, senal_ultima_vela
+from .bots import cierre_de_vela, niveles, resultado, revisar_vela, senal_ultima_vela, usa_externos
 from .datos import tf_ms
 
 log = logging.getLogger("fabrica")
@@ -276,17 +276,32 @@ class Liga:
             return
         ultima_ts = int(velas["ts"].iloc[-1])
         fresca = self.reloj() * 1000 - (ultima_ts + tf_ms(tf)) <= tf_ms(tf)
+        externos_cache = None
         for bot in [b for b in self.bots() if b["rol"] in ("titular", "suplente") and b["simbolo"] == simbolo and b["tf"] == tf]:
             nuevas = velas[velas["ts"] > bot["ultima_vela_ts"]] if bot["ultima_vela_ts"] else velas.tail(1)
             for vela in nuevas.to_dict("records"):
                 self._gestionar(bot, vela)
                 bot["ultima_vela_ts"] = int(vela["ts"])
             if len(nuevas) and fresca and bot["posicion"] is None and bot["rol"] in ("titular", "suplente"):
-                lado, atr = senal_ultima_vela(bot["estrategia"], velas)
+                externos = None
+                if usa_externos(bot["estrategia"]):
+                    if externos_cache is None:
+                        externos_cache = self._externos(simbolo, tf, velas)
+                    externos = externos_cache
+                lado, atr = senal_ultima_vela(bot["estrategia"], velas, externos)
                 if lado:
                     self._abrir(bot, lado, atr, velas.iloc[-1].to_dict())
         self._controlar_cuenta()
         self.guardar()
+
+    def _externos(self, simbolo, tf, velas) -> dict:
+        """Datos de afuera del gráfico para las estrategias que los usan. Si fallan, esas estrategias no entran."""
+        try:
+            return self.mercado.externos_vivo(simbolo, tf, velas, int(self.reloj() * 1000))
+        except Exception as e:  # noqa: BLE001
+            self._aviso_unico("externos", f"⚠️ No pude leer los datos externos (funding / Bitcoin / Miedo y Codicia): {e}. "
+                                          "Las estrategias que los usan no abren operaciones hasta que vuelvan.")
+            return {}
 
     def _gestionar(self, bot, vela):
         pos = bot["posicion"]

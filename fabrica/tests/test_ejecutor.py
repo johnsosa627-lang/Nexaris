@@ -53,3 +53,18 @@ def test_ejecutor_abre_protege_y_cierra():
     salida, pnl = ej.cerrar("XRP/USDT:USDT", {"lado": -1, "entrada": 0.5, "cantidad": 30, "abierta_ts": 0})
     assert ("market", "buy", 30.0, {"reduceOnly": True}) in cli.ordenes
     assert salida == pytest.approx(0.48) and pnl == pytest.approx(0.6 - 0.0147)
+
+
+def test_externos_vivo():
+    import json
+    import pandas as pd
+    cli = CcxtFalso()
+    cli.fetch_funding_rate_history = lambda s, limit: [{"timestamp": T0, "fundingRate": 0.0003}]
+
+    class R:
+        def raise_for_status(self): pass
+        def json(self): return {"data": [{"timestamp": str((T0 - 86_400_000) // 1000), "value": "12"}]}
+    m = Mercado(cli)
+    velas = m.velas("XRP/USDT:USDT", "1h", 1000, T0 + 10 * H)
+    ext = m.externos_vivo("XRP/USDT:USDT", "1h", velas, T0 + 10 * H, http_get=lambda url, timeout: R())
+    assert ext["funding"][-1] == pytest.approx(0.03) and ext["fng"][-1] == 12 and len(ext["btc"]) == len(velas)

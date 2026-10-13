@@ -150,7 +150,63 @@ def actualizar(cfg: dict, cliente=None, ahora_ms: Optional[int] = None) -> list:
             _guardar(total.reset_index(drop=True), ruta_funding(carpeta, simbolo))
         resumen.append({"simbolo": simbolo, "tf": "funding", "nuevas": len(nuevo),
                         "total": len(viejo) + len(nuevo)})
+    try:
+        fng = descargar_miedo_codicia()
+        _guardar(fng, ruta_miedo_codicia(carpeta))
+        resumen.append({"simbolo": "Miedo y Codicia", "tf": "diario", "nuevas": len(fng), "total": len(fng)})
+    except Exception as e:  # noqa: BLE001 - si falla, la fábrica sigue sin ese dato
+        log.warning("No se pudo bajar el índice de Miedo y Codicia: %s", e)
     return resumen
+
+
+# ------------------------------------------------------------------ datos de afuera del gráfico
+URL_MIEDO_CODICIA = "https://api.alternative.me/fng/?limit=0&format=json"
+SIMBOLO_LIDER = "BTC/USDT:USDT"
+
+
+def ruta_miedo_codicia(carpeta: str) -> str:
+    return os.path.join(carpeta, "externos", "miedo_codicia.csv.gz")
+
+
+def descargar_miedo_codicia(http_get=None) -> pd.DataFrame:
+    """Historia diaria del índice de Miedo y Codicia (0 = miedo extremo, 100 = codicia extrema)."""
+    import requests
+    http_get = http_get or requests.get
+    r = http_get(URL_MIEDO_CODICIA, timeout=30)
+    r.raise_for_status()
+    filas = [{"ts": int(x["timestamp"]) * 1000, "valor": float(x["value"])} for x in r.json()["data"]]
+    return pd.DataFrame(filas, columns=["ts", "valor"]).drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
+
+
+def cargar_miedo_codicia(carpeta: str) -> pd.DataFrame:
+    return _leer(ruta_miedo_codicia(carpeta), ["ts", "valor"])
+
+
+def alinear_ultimo(ts_velas: np.ndarray, serie: pd.DataFrame, columna: str, tf: str, demora_ms: int = 0) -> np.ndarray:
+    """Último valor CONOCIDO al cierre de cada vela (sin mirar el futuro). NaN si todavía no había dato.
+    `demora_ms`: cuánto después de su fecha se conoce el dato (ej: el Miedo y Codicia de un día se usa al día siguiente)."""
+    resultado = np.full(len(ts_velas), np.nan)
+    if serie is None or serie.empty or len(ts_velas) == 0:
+        return resultado
+    ts_s = serie["ts"].to_numpy(dtype="int64") + demora_ms
+    valores = serie[columna].to_numpy(dtype=float)
+    idx = np.searchsorted(ts_s, np.asarray(ts_velas, dtype="int64") + tf_ms(tf), side="right") - 1
+    validos = idx >= 0
+    resultado[validos] = valores[idx[validos]]
+    return resultado
+
+
+def externos_para(ts_velas: np.ndarray, tf: str, funding: pd.DataFrame, velas_lider: pd.DataFrame,
+                  miedo_codicia: pd.DataFrame) -> dict:
+    """Series de afuera del gráfico alineadas con las velas: funding (%), cierre de Bitcoin y Miedo y Codicia."""
+    externos = {"funding": alinear_ultimo(ts_velas, funding, "tasa", tf) * 100,
+                "fng": alinear_ultimo(ts_velas, miedo_codicia, "valor", tf, demora_ms=86_400_000)}
+    btc = np.full(len(ts_velas), np.nan)
+    if velas_lider is not None and not velas_lider.empty:
+        mapa = pd.Series(velas_lider["close"].to_numpy(dtype=float), index=velas_lider["ts"].to_numpy(dtype="int64"))
+        btc = mapa.reindex(np.asarray(ts_velas, dtype="int64")).to_numpy(dtype=float)
+    externos["btc"] = btc
+    return externos
 
 
 # ------------------------------------------------------------------ preparación para el motor
