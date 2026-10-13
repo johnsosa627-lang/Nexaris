@@ -174,6 +174,17 @@ y te manda un resumen todas las noches a las 22 (hora de Uruguay).
 - `testnet`: los titulares operan en la cuenta Demo de Binance (plata de mentira).
 - `real`: plata real. Necesita `LIVE_TRADING=true` **y** confirmar por Telegram con `/confirmar_real`.
 
+## Modo exploración 🧪 (solo práctica)
+
+Si la fábrica no encuentra nada con los filtros estrictos, igual vas a querer ver bots trabajando.
+Con `exploracion.activa: true` en `config.yaml`, además aprueba "en prueba" 🧪 las estrategias que
+pasan unos filtros más flojos (también listados ahí). Estas:
+- se marcan con 🧪 en Telegram y en los informes,
+- entran a la liga solo si sobra lugar después de las estrictas,
+- **nunca operan con plata real** (con `MODO=real` quedan siempre como suplentes simuladas).
+
+Con precios puramente al azar, ni siquiera los filtros flojos aprueban nada.
+
 ## Instalarlo en Easypanel
 
 1. En Easypanel: tu proyecto → **+ Service** → **App** → nombre `fabrica`.

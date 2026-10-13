@@ -273,3 +273,25 @@ def test_titular_en_binance(tmp_path):
     liga._gestionar(bot, vela)
     assert bot["posicion"] is None and "(exchange)" in bot["trades"][-1]["motivo"]
     assert liga.e["cuenta"]["equity"] != 15
+
+
+def test_estrategias_de_exploracion_nunca_operan_con_plata_real(tmp_path):
+    t = {"ahora": 1_700_000_000.0}
+    reg = registro(1)
+    reg["nivel"] = "exploracion"
+    for modo, esperado in (("testnet", "titular"), ("real", "suplente")):
+        liga = Liga(cfg_prueba(), str(tmp_path / modo), MercadoFalso(), EjecutorFalso(), lambda m: None,
+                    reloj=lambda: t["ahora"], modo=modo)
+        liga.sincronizar_banco([reg])
+        liga.completar_titulares()
+        assert liga.e["bots"]["bot1"]["rol"] == esperado
+    assert "🧪" in liga.texto_bots()
+
+
+def test_primero_las_estrictas(tmp_path):
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=1))
+    flojo = registro(1, fitness=50)
+    flojo["nivel"] = "exploracion"
+    liga.sincronizar_banco([flojo, registro(2, "BBB/USDT:USDT", fitness=5)])
+    liga.completar_titulares()
+    assert liga.e["bots"]["bot2"]["rol"] == "titular" and liga.e["bots"]["bot1"]["rol"] == "suplente"

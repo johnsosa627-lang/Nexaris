@@ -113,15 +113,24 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
 
     embudo = {"inventadas": len(archivo), "ya_examinadas_antes": len(previas), "candidatas": len(candidatas)}
     embudo.update({clave: 0 for clave, _, _ in FILTROS})
+    embudo["aprobadas_exploracion"] = 0
+    exploracion = cfg.get("exploracion") or {}
     for cand in candidatas:
         pasos = aplicar_filtros(cand, combo, f, rng)
         for clave, ok, _ in pasos:
             embudo[clave] += ok
         if len(pasos) == len(FILTROS) and pasos[-1][1]:
             resultado["aprobadas"].append(_registro(cand, simbolo, tf, corte_examen, pasos))
-        else:
-            clave, _, detalle = pasos[-1]
-            resultado["descartes"].append({"id": _id(cand), "filtro": clave, "detalle": detalle})
+            continue
+        clave, _, detalle = pasos[-1]
+        resultado["descartes"].append({"id": _id(cand), "filtro": clave, "detalle": detalle})
+        # Modo exploración: con filtros más flojos, SOLO para practicar (nunca opera con plata real)
+        if exploracion.get("activa"):
+            cand_x = copy.deepcopy(cand)
+            pasos_x = aplicar_filtros(cand_x, combo, {**f, **exploracion["filtros"]}, rng)
+            if len(pasos_x) == len(FILTROS) and pasos_x[-1][1]:
+                embudo["aprobadas_exploracion"] += 1
+                resultado["aprobadas"].append(_registro(cand_x, simbolo, tf, corte_examen, pasos_x, "exploracion"))
     resultado["embudo"] = embudo
     resultado["suerte"] = suerte_cache or None
     resultado["segundos"] = round(time.time() - inicio, 1)
@@ -150,10 +159,10 @@ def _limpiar(x):
     return x
 
 
-def _registro(cand, simbolo, tf, corte_examen, pasos):
+def _registro(cand, simbolo, tf, corte_examen, pasos, nivel="estricto"):
     est = cand["estrategia"]
     return _limpiar({
-        "id": _id(cand), "simbolo": simbolo, "tf": tf, "explicacion": describir(est), "estrategia": est,
+        "id": _id(cand), "simbolo": simbolo, "tf": tf, "nivel": nivel, "explicacion": describir(est), "estrategia": est,
         "fitness": cand["fitness"], "metricas_creacion": cand["metricas"],
         "metricas_trabajo": cand.get("metricas_trabajo"), "metricas_fuera_de_muestra": cand.get("metricas_oos"),
         "walk_forward": cand.get("walk_forward"), "montecarlo": cand.get("montecarlo"),
@@ -199,7 +208,8 @@ def guardar_ciclo(cfg, resultados, inicio, semilla) -> dict:
     nombre = inicio.strftime("ciclo_%Y%m%d_%H%M%S")
     carpeta = os.path.join(cfg["salida"]["carpeta"], nombre)
     os.makedirs(os.path.join(carpeta, "aprobadas"), exist_ok=True)
-    embudo = {"inventadas": 0, "ya_examinadas_antes": 0, "candidatas": 0, **{clave: 0 for clave, _, _ in FILTROS}}
+    embudo = {"inventadas": 0, "ya_examinadas_antes": 0, "candidatas": 0, **{clave: 0 for clave, _, _ in FILTROS},
+              "aprobadas_exploracion": 0}
     aprobadas = []
     for r in resultados:
         for k, v in r.get("embudo", {}).items():

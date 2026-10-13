@@ -113,7 +113,7 @@ class Liga:
             self.e["bots"][reg["id"]] = {
                 "id": reg["id"], "rol": "suplente", "simbolo": reg["simbolo"], "tf": reg["tf"],
                 "estrategia": reg["estrategia"], "explicacion": reg.get("explicacion", ""),
-                "fitness": reg.get("fitness", 0.0),
+                "fitness": reg.get("fitness", 0.0), "nivel": reg.get("nivel", "estricto"),
                 "mc_dd": (reg.get("montecarlo") or {}).get("drawdown_p95_pct", self.cfg["filtros"]["max_drawdown_pct"]),
                 "r_backtest": reg.get("r_backtest", []), "retornos_backtest": reg.get("retornos_backtest", []),
                 "retornos_diarios": reg.get("retornos_diarios", {}),
@@ -128,6 +128,8 @@ class Liga:
     def elegible(self, bot, excluir: Optional[str] = None) -> bool:
         if bot["rol"] != "suplente" or bot["posicion"] is not None:
             return False
+        if bot.get("nivel") == "exploracion" and self.modo == "real":
+            return False  # las de filtros flojos NUNCA operan con plata real
         titulares = [t for t in self.bots("titular") if t["id"] != excluir]
         if any(t["simbolo"] == bot["simbolo"] for t in titulares):
             return False  # una sola posición por moneda en la cuenta
@@ -137,7 +139,9 @@ class Liga:
         return not self.debe_jubilarse(bot)[0]
 
     def completar_titulares(self):
-        candidatos = sorted(self.bots("suplente"), key=lambda b: b["fitness"], reverse=True)
+        # Primero las que pasaron los filtros estrictos; las de exploración solo si sobra lugar
+        candidatos = sorted(self.bots("suplente"), key=lambda b: (b.get("nivel") != "exploracion", b["fitness"]),
+                            reverse=True)
         for bot in candidatos:
             if len(self.bots("titular")) >= self.L["max_titulares"]:
                 break
@@ -150,7 +154,8 @@ class Liga:
         bot["titular_desde"] = self.ahora().isoformat(timespec="seconds")
         if self.ejecutor is not None:
             self.ejecutor.preparar(bot["simbolo"])
-        self.evento(f"⬆️ {bot['id']} ({_moneda(bot['simbolo'])} {bot['tf']}) pasa a TITULAR: {motivo}.\n"
+        prueba = " 🧪 (en prueba: filtros flojos, solo práctica)" if bot.get("nivel") == "exploracion" else ""
+        self.evento(f"⬆️ {bot['id']} ({_moneda(bot['simbolo'])} {bot['tf']}) pasa a TITULAR{prueba}: {motivo}.\n"
                     f"Qué hace: {bot['explicacion']}")
 
     def debe_jubilarse(self, bot):
@@ -451,17 +456,19 @@ class Liga:
         lineas = ["🏆 TITULARES"]
         for b in self.bots("titular") or []:
             n, g, r, pnl = self._stats(b)
-            lineas.append(f"• {b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones en vivo, {g} ganadas, "
+            lineas.append(f"• {'🧪 ' if b.get('nivel') == 'exploracion' else ''}{b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones en vivo, {g} ganadas, "
                           f"{r:+.1f}R ({pnl:+.2f} USDT){' · abierta' if b['posicion'] else ''}")
         if not self.bots("titular"):
             lineas.append("(todavía ninguno)")
         lineas.append("🪑 SUPLENTES (practican simulados)")
         for b in sorted(self.bots("suplente"), key=lambda x: -sum(t["r"] for t in x["trades"]))[:10]:
             n, g, r, _ = self._stats(b)
-            lineas.append(f"• {b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones, {g} ganadas, {r:+.1f}R")
+            lineas.append(f"• {'🧪 ' if b.get('nivel') == 'exploracion' else ''}{b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones, {g} ganadas, {r:+.1f}R")
         if not self.bots("suplente"):
             lineas.append("(ninguno)")
         lineas.append("R = veces lo arriesgado (+2R = ganó el doble de lo que arriesgaba).")
+        if any(b.get("nivel") == "exploracion" for b in self.bots()):
+            lineas.append("🧪 = en prueba con filtros flojos: solo practica, nunca con plata real.")
         return "\n".join(lineas)
 
     def texto_noche(self) -> str:
