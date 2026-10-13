@@ -55,7 +55,9 @@ def examinar(cfg: dict, registro: dict) -> dict:
     if registro["id"] in examenes:
         return {**examenes[registro["id"]], "ya_examinada": True}
 
-    e = cfg["examen"]
+    e = dict(cfg["examen"])
+    if registro.get("nivel") == "exploracion":
+        e.update((cfg.get("exploracion") or {}).get("examen", {}))
     carpeta = cfg["datos"]["carpeta"]
     velas = cargar_velas(carpeta, registro["simbolo"], registro["tf"])
     corte = int(registro["corte_examen_ms"])

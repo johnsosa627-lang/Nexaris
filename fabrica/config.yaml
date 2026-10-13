@@ -131,3 +131,32 @@ servicio:
   hora_ciclo_utc: 3
   # Núcleos para el ciclo (dejá libres para n8n y el resto del servidor)
   procesos_ciclo: 2
+
+exploracion:
+  # Modo exploración: además de las estrategias que pasan los filtros estrictos, aprueba "en prueba" 🧪
+  # las que pasan estos filtros más flojos. SOLO PRACTICAN (papel o Demo de Binance): con MODO=real
+  # nunca operan. Sirve para ver bots trabajando y juntar datos en vivo mientras la fábrica busca.
+  # Ojo: con filtros flojos es más probable que la estrategia haya ganado por suerte.
+  activa: true
+  filtros:
+    min_operaciones: 100
+    min_profit_factor: 1.15
+    min_ret_dd: 1.5
+    max_drawdown_pct: 25
+    min_estabilidad: 0.6
+    min_pct_anios_positivos: 50
+    oos_min_profit_factor: 1.0
+    wf_min_pct_ventanas_positivas: 50
+    wf_min_profit_factor: 1.0
+    montecarlo_confianza_pct: 80
+    montecarlo_max_drawdown_p95_pct: 30
+    robustez_min_pct_rentables: 60
+    robustez_min_ret_dd_relativo: 0.3
+    otras_monedas_min_pct: 25
+    temporalidad_vecina_min: 0
+    retraso_min_profit_factor: 1.0
+    antisuerte_margen: 1.0
+    dsr_min: 0.5
+  examen:
+    min_operaciones: 5
+    min_profit_factor: 1.0

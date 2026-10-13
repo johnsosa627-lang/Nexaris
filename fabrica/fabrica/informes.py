@@ -16,6 +16,8 @@ def tarjeta(registro: dict, capital: float = 15.0) -> str:
     m = registro.get("metricas_trabajo") or registro.get("metricas_creacion") or {}
     mc = registro.get("montecarlo") or {}
     lineas = [
+        ("🧪 EN PRUEBA (pasó con filtros flojos: solo practica, nunca con plata real)\n"
+         if registro.get("nivel") == "exploracion" else "") +
         f"📈 Estrategia {registro['id']} — {_moneda(registro['simbolo'])}, {NOMBRES_TF.get(registro['tf'], registro['tf'])}",
         f"Qué hace: {registro['explicacion']}",
     ]
@@ -67,6 +69,8 @@ def informe_ciclo(cfg: dict, carpeta_ciclo: str) -> str:
               f"Las {e['candidatas']} mejores pasaron por el colador:"]
     for clave, nombre, _ in FILTROS:
         lineas.append(f"  {clave[0]}. {nombre}: pasaron {e[clave]}")
+    if e.get("aprobadas_exploracion"):
+        lineas.append(f"  🧪 Además, {e['aprobadas_exploracion']} pasaron con los filtros flojos de exploración (solo práctica)")
     lineas.append(f"  Examen final: {len(pasaron)} de {len(examinadas)} aprobaron")
     lineas.append("")
     if pasaron:

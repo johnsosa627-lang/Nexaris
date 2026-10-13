@@ -24,6 +24,7 @@ def _cfg(tmp_path, phi):
 
 def test_ciclo_con_tendencias_reales_aprueba_y_guarda(tmp_path):
     cfg = _cfg(tmp_path, 0.2)
+    cfg["exploracion"]["activa"] = False
     r = ciclo(cfg, simbolos=SIMBOLOS[:1], tfs=["1h"], procesos=1)
     e = r["embudo"]
     pasos = ["candidatas"] + [f[0] for f in FILTROS]
@@ -48,6 +49,7 @@ def test_ciclo_con_tendencias_reales_aprueba_y_guarda(tmp_path):
 
 def test_ciclo_con_precios_al_azar_no_aprueba_nada(tmp_path):
     cfg = _cfg(tmp_path, 0.0)
+    cfg["exploracion"]["activa"] = False
     r = ciclo(cfg, simbolos=SIMBOLOS[:1], tfs=["1h"], procesos=1)
     assert r["aprobadas"] == [] and r["embudo"]["inventadas"] > 100
     assert "Ninguna estrategia" in r["texto"]
@@ -59,3 +61,14 @@ def test_ciclo_en_paralelo_y_mercado_sin_datos(tmp_path):
     r = ciclo(cfg, simbolos=["AAA/USDT:USDT", "ZZZ/USDT:USDT"], tfs=["4h"], procesos=2)
     errores = {m["simbolo"]: m["error"] for m in r["por_mercado"]}
     assert errores["ZZZ/USDT:USDT"].startswith("pocos datos") and errores["AAA/USDT:USDT"] is None
+
+
+def test_exploracion_aprueba_con_filtros_flojos_y_las_marca(tmp_path):
+    import glob
+    cfg = _cfg(tmp_path, 0.12)  # ventaja moderada: no pasa lo estricto, sí lo flojo
+    flojo = ciclo(cfg, simbolos=SIMBOLOS[:1], tfs=["1h"], procesos=1)
+    assert flojo["embudo"]["7_antisuerte"] == 0 and flojo["embudo"]["aprobadas_exploracion"] >= 1
+    assert "filtros flojos" in flojo["informe"]
+    registros = [json.load(open(p, encoding="utf-8")) for p in glob.glob(os.path.join(flojo["carpeta"], "aprobadas", "*.json"))]
+    assert registros and all(r["nivel"] == "exploracion" for r in registros)
+    assert all(r["montecarlo"] and r["antisuerte"] for r in registros)
