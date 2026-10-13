@@ -130,6 +130,8 @@ class Liga:
             return False
         if bot.get("nivel") == "exploracion" and self.modo == "real":
             return False  # las de filtros flojos NUNCA operan con plata real
+        if bot.get("no_operable") or not self.operable(bot):
+            return False  # con este capital no llega al mínimo de Binance: no ocupa un lugar de titular
         titulares = [t for t in self.bots("titular") if t["id"] != excluir]
         if any(t["simbolo"] == bot["simbolo"] for t in titulares):
             return False  # una sola posición por moneda en la cuenta
@@ -137,6 +139,23 @@ class Liga:
                for t in titulares):
             return False
         return not self.debe_jubilarse(bot)[0]
+
+    def operable(self, bot) -> bool:
+        """¿Puede operar con el capital actual respetando el 1% de riesgo y el mínimo de Binance?"""
+        try:
+            _, min_nocional = self.mercado.limites(bot["simbolo"])
+        except Exception:  # noqa: BLE001 - sin datos del mercado no se descarta
+            return True
+        if not min_nocional:
+            return True
+        capital = self.capital()
+        maximo = capital * self.R["apalancamiento_max"]
+        if min_nocional > maximo:
+            return False
+        s = bot["estrategia"]["salidas"]
+        if s["stop_tipo"] == "pct":  # con stop en %, el tamaño de la operación se sabe de antemano
+            return min(capital * self.riesgo_frac / (s["stop"] / 100), maximo) >= min_nocional
+        return True  # stop en ATR: depende del momento; si no alcanza, lo detecta al operar
 
     def completar_titulares(self):
         # Primero las que pasaron los filtros estrictos; las de exploración solo si sobra lugar
@@ -183,6 +202,12 @@ class Liga:
                 bot["rol"], bot["motivo_jubilacion"] = "jubilado", motivo
                 self.evento(f"👴 {bot['id']} ({_moneda(bot['simbolo'])} {bot['tf']}) se jubila ({era}): {motivo}.",
                             avisar=(era == "titular"))
+        # Titulares que una y otra vez no llegan al mínimo de Binance: dejan su lugar a otro
+        for tit in self.bots("titular"):
+            if tit.get("omitidas_seguidas", 0) >= self.L.get("max_senales_sin_operar", 3) and tit["posicion"] is None:
+                tit["rol"], tit["no_operable"] = "suplente", True
+                self.evento(f"↩️ {tit['id']} ({_moneda(tit['simbolo'])}) vuelve a suplente: con {self.capital():.2f} USDT "
+                            f"no llega al mínimo de Binance en sus operaciones. Dejo su lugar a otro bot.")
         minimo = self.L["min_operaciones_ascenso"]
         for tit in self.bots("titular"):
             if tit["posicion"] is not None or len(tit["trades"]) < minimo:
@@ -310,6 +335,7 @@ class Liga:
                                         lambda q: self.mercado.ajustar(bot["simbolo"], q), min_q, min_n)
             if not cantidad:
                 bot["omitidas"] = bot.get("omitidas", 0) + 1
+                bot["omitidas_seguidas"] = bot.get("omitidas_seguidas", 0) + 1
                 self._aviso_unico(f"min-{bot['id']}", f"🚫 {bot['id']} ({_moneda(bot['simbolo'])}) tuvo señal pero no "
                                                       f"opera: {motivo}. Con {capital:.2f} USDT y 1% de riesgo no alcanza.")
                 return
@@ -326,6 +352,7 @@ class Liga:
             if niv is None:
                 return
             cantidad, riesgo_real = None, float(self.R["capital_inicial"]) * self.riesgo_frac
+        bot["omitidas_seguidas"] = 0
         bot["posicion"] = {"lado": lado, "entrada": entrada, "cantidad": cantidad, "riesgo_usdt": riesgo_real,
                            "abierta_ts": int(self.reloj() * 1000), "velas": 0,
                            "abierta": self.ahora().isoformat(timespec="seconds"), **niv}

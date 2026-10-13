@@ -116,6 +116,8 @@ liga:
   z_jubilacion: -2.5
   # Velas de historia para calcular las señales en vivo
   velas_historia: 1000
+  # Si un titular tiene esta cantidad de señales seguidas sin poder operar (mínimo de Binance), deja su lugar
+  max_senales_sin_operar: 3
   # Cada cuántos segundos vigila los stops por software
   intervalo_vigilancia: 30
 
