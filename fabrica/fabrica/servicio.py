@@ -257,7 +257,9 @@ def main():
     carpeta_vivo = os.getenv("FABRICA_VIVO") or str(RAIZ / "vivo")
     configurar_log(carpeta_vivo)
     chat = os.getenv("TELEGRAM_CHAT_ID") or str(cfg.get("servicio", {}).get("telegram_chat_id") or "")
-    tg = Telegram(os.getenv("TELEGRAM_TOKEN", "").strip(), chat.strip())
+    # Un token real nunca tiene "=": si se pegó "TELEGRAM_TOKEN=..." de más, me quedo con lo último
+    token = os.getenv("TELEGRAM_TOKEN", "").strip().rsplit("=", 1)[-1].strip()
+    tg = Telegram(token, chat.strip().rsplit("=", 1)[-1].strip())
     modo = (os.getenv("MODO") or "papel").strip().lower()
     clave, secreto = os.getenv("BINANCE_API_KEY", ""), os.getenv("BINANCE_API_SECRET", "")
     avisos = []
