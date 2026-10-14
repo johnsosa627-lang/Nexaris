@@ -99,3 +99,21 @@ def test_describir():
     t = E.describir(e)
     assert "Solo compra" in t and "máximo de las últimas 20 velas" in t and "1.5 veces" in t
     assert "2.0%" in t and "48 velas" in t and "ATR" not in t
+
+
+def test_piezas_nuevas_a_mano():
+    v = velas_aleatorias(600, semilla=5)
+    ctx = E.Contexto(v)
+    # horario: 0-8 UTC = Asia; las velas son de 1 hora desde las 00:00
+    asia = E.condicion(ctx, {"tipo": "horario", "tramo": "asia"}, 1)
+    assert asia[:8].all() and not asia[8:24].any()
+    assert (asia == E.condicion(ctx, {"tipo": "horario", "tramo": "asia"}, -1)).all()
+    # volatilidad: > y < son complementarios donde hay datos
+    mas = E.condicion(ctx, {"tipo": "volatilidad", "op": ">", "nivel": 1.0}, 1)
+    menos = E.condicion(ctx, {"tipo": "volatilidad", "op": "<", "nivel": 1.0}, 1)
+    assert not (mas & menos).any() and mas[200:].any() and menos[200:].any()
+    # retroceso_rsi y ruptura_compresion dan alguna señal y nunca en las primeras velas (sin datos)
+    for c in ({"tipo": "retroceso_rsi", "n": 2, "nivel": 10}, {"tipo": "ruptura_compresion", "n": 20, "m": 50}):
+        s = E.condicion(ctx, c, 1)
+        assert s.any() and not s[:3].any()
+        assert "UTC" in E.describir_condicion({"tipo": "horario", "tramo": "europa"})

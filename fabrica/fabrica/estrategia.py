@@ -26,10 +26,17 @@ STOP = {"pct": [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0], "atr": [1.0, 1.5, 2.0,
 TP = {"pct": [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0], "atr": [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0]}
 TRAILING = {"pct": [1.0, 2.0, 3.0], "atr": [1.5, 2.0, 3.0, 4.0]}
 MAX_VELAS = [12, 24, 48, 96, 200]
+RSI_CORTO_N = [2, 3]                       # RSI muy corto: retrocesos de 1-3 velas
+RSI_CORTO_NIVEL = [5, 10, 15, 20]
+COMPRESION = [(20, 50), (20, 100), (50, 100)]  # (Bollinger, velas en las que su ancho es el menor)
+HORARIOS = ["asia", "europa", "america"]   # 0-8, 8-16 y 16-24 hora UTC
+HORAS = {"asia": (0, 8), "europa": (8, 16), "america": (16, 24)}
+VOLATILIDAD = [0.7, 1.0, 1.3]              # ATR actual / su promedio de 100 velas
 
-DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce"]
+DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce",
+                "retroceso_rsi", "ruptura_compresion"]
 FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro",
-           "funding_filtro", "btc_tendencia", "miedo_codicia"]
+           "funding_filtro", "btc_tendencia", "miedo_codicia", "horario", "volatilidad"]
 # Datos de afuera del gráfico: la fábrica los prueba igual que todo; si no sirven, los descarta
 EXTERNOS = {"funding_filtro", "btc_tendencia", "miedo_codicia"}
 FUNDING_NIVEL = [-0.01, 0.0, 0.01, 0.03]   # % por cada 8 horas
@@ -80,6 +87,15 @@ class Contexto:
             return ind.sma(self.v, k[1])
         if t == "atr":
             return ind.atr(self.h, self.l, self.c, k[1])
+        if t == "bbancho":  # ancho de Bollinger relativo al precio
+            sup, _, inf = ind.bollinger(self.c, k[1], 2.0)
+            return (sup - inf) / self.c.abs()
+        if t == "atr_rel":  # ATR de hoy comparado con su promedio de 100 velas
+            a = self.ind("atr", 14)
+            return a / a.rolling(100).mean()
+        if t == "hora":
+            ts = self.velas["ts"] if "ts" in self.velas else pd.Series(np.full(len(self.velas), np.nan))
+            return (ts // 3_600_000) % 24
         if t == "ext":  # dato externo (si falta, todo NaN: la condición no se cumple nunca)
             return self.externos.get(k[1], pd.Series(np.full(len(self.velas), np.nan)))
         if t == "ext_ema":
@@ -123,6 +139,20 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
     if t == "rsi_cruce":
         nivel = cond["nivel"] if lado == 1 else 100 - cond["nivel"]
         return cruza(ctx.ind("rsi", cond["n"]), pd.Series(nivel, index=ctx.c.index))
+    if t == "retroceso_rsi":  # compra un retroceso corto (RSI de 2-3 velas sale de sobreventa)
+        nivel = cond["nivel"] if lado == 1 else 100 - cond["nivel"]
+        return cruza(ctx.ind("rsi", cond["n"]), pd.Series(nivel, index=ctx.c.index))
+    if t == "ruptura_compresion":  # mercado "dormido" (bandas muy angostas) que se despierta con fuerza
+        ancho = ctx.ind("bbancho", cond["n"])
+        dormido = (ancho.shift(1) <= ancho.shift(1).rolling(cond["m"]).min()).to_numpy()
+        banda = ctx.ind("bbs", cond["n"], 2.0) if lado == 1 else ctx.ind("bbi", cond["n"], 2.0)
+        return dormido & cruza(ctx.c, banda)
+    if t == "horario":  # simétrico: solo opera en ese tramo del día
+        desde, hasta = HORAS[cond["tramo"]]
+        h = ctx.ind("hora")
+        return ((h >= desde) & (h < hasta)).to_numpy()
+    if t == "volatilidad":  # simétrico: mercado más movido (>) o más tranquilo (<) que lo normal
+        return _comparar(ctx.ind("atr_rel"), cond["op"], cond["nivel"])
     if t == "tendencia":
         return _comparar(ctx.c, ">" if lado == 1 else "<", ctx.ind(cond["media"], cond["n"]))
     if t == "rsi_filtro":
@@ -185,6 +215,15 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
         return {"tipo": tipo, "n": n, "k": k}
     if tipo == "rsi_cruce":
         return {"tipo": tipo, "n": _elegir(rng, RSI_N), "nivel": _elegir(rng, RSI_CRUCE)}
+    if tipo == "retroceso_rsi":
+        return {"tipo": tipo, "n": _elegir(rng, RSI_CORTO_N), "nivel": _elegir(rng, RSI_CORTO_NIVEL)}
+    if tipo == "ruptura_compresion":
+        n, m = _elegir(rng, COMPRESION)
+        return {"tipo": tipo, "n": n, "m": m}
+    if tipo == "horario":
+        return {"tipo": tipo, "tramo": _elegir(rng, HORARIOS)}
+    if tipo == "volatilidad":
+        return {"tipo": tipo, "op": _elegir(rng, [">", "<"]), "nivel": _elegir(rng, VOLATILIDAD)}
     if tipo == "tendencia":
         return {"tipo": tipo, "media": _elegir(rng, ["ema", "sma"]), "n": _elegir(rng, MEDIAS[4:])}
     if tipo == "rsi_filtro":
@@ -274,6 +313,15 @@ def _mover_condicion(rng, cond: dict) -> dict:
         c["n"] = _vecino(rng, MEDIAS[4:], c["n"])
     elif t == "miedo_codicia":
         c["nivel"] = _vecino(rng, FNG_NIVEL, c["nivel"])
+    elif t == "retroceso_rsi":
+        clave = "n" if rng.random() < 0.3 else "nivel"
+        c[clave] = _vecino(rng, RSI_CORTO_N if clave == "n" else RSI_CORTO_NIVEL, c[clave])
+    elif t == "ruptura_compresion":
+        c["n"], c["m"] = _vecino(rng, COMPRESION, (c["n"], c["m"]))
+    elif t == "horario":
+        c["tramo"] = _vecino(rng, HORARIOS, c["tramo"])
+    elif t == "volatilidad":
+        c["nivel"] = _vecino(rng, VOLATILIDAD, c["nivel"])
     return c
 
 
@@ -367,6 +415,17 @@ def describir_condicion(c: dict) -> str:
         return f"el precio vuelve a entrar por arriba de la banda inferior de Bollinger ({c['n']}, {c['k']})"
     if t == "rsi_cruce":
         return f"el RSI de {c['n']} velas sube por encima de {c['nivel']}"
+    if t == "retroceso_rsi":
+        return f"tras una caída corta, el RSI de {c['n']} velas vuelve a subir por encima de {c['nivel']} (compra el retroceso)"
+    if t == "ruptura_compresion":
+        return (f"después de un mercado quieto (bandas de Bollinger de {c['n']} velas en su punto más angosto de "
+                f"las últimas {c['m']}), el precio rompe la banda superior")
+    if t == "horario":
+        desde, hasta = HORAS[c["tramo"]]
+        return f"es horario de {c['tramo'].capitalize()} ({desde} a {hasta} h UTC)"
+    if t == "volatilidad":
+        return (f"el mercado se mueve {'más' if c['op'] == '>' else 'menos'} que {c['nivel']} veces "
+                f"lo normal (ATR comparado con su promedio)")
     if t == "tendencia":
         return f"el precio está por encima de su {_media(c)} de {c['n']} velas (tendencia alcista)"
     if t == "rsi_filtro":
