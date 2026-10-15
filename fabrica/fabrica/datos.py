@@ -67,9 +67,7 @@ def descargar_velas(cliente, simbolo: str, tf: str, desde_ms: int, ahora_ms: Opt
         ultimo = lote[-1][0]
         if ultimo < desde:
             break
-        desde = ultimo + paso
-        if len(lote) < limite:
-            break
+        desde = ultimo + paso  # Binance a veces devuelve menos que `limite`: seguir hasta hoy igual
     df = pd.DataFrame(filas, columns=COLUMNAS)
     if df.empty:
         return df
@@ -87,7 +85,7 @@ def descargar_funding(cliente, simbolo: str, desde_ms: int, ahora_ms: Optional[i
             break
         filas.extend({"ts": int(x["timestamp"]), "tasa": float(x["fundingRate"])} for x in lote)
         ultimo = int(lote[-1]["timestamp"])
-        if ultimo < desde or len(lote) < limite:
+        if ultimo < desde:
             break
         desde = ultimo + 1
     df = pd.DataFrame(filas, columns=["ts", "tasa"])
