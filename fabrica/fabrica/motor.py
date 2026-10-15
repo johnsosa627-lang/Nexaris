@@ -3,7 +3,8 @@
 Reglas de simulación (conservadoras, sin mirar el futuro):
 - Las señales se calculan al CIERRE de una vela y se ejecutan en la APERTURA de la siguiente
   (o `retraso` velas más tarde, para probar "entrar una vela tarde").
-- Toda operación lleva stop-loss. Sin stop no se opera.
+- Toda operación lleva stop-loss. Sin stop no se opera. El stop puede ser % del precio, múltiplos de ATR o
+  "rango" (debajo del mínimo de las últimas N velas): esa distancia se mide al cierre de la vela de la señal.
 - Si en una misma vela se tocan el stop y el take-profit, se asume que primero tocó el stop.
 - Si el precio abre más allá del stop (hueco), se cierra al precio de apertura, no al del stop.
 - Tamaño: se arriesga `riesgo_pct` del capital hasta el stop, con tope de apalancamiento.
@@ -27,22 +28,23 @@ except ImportError:  # sin numba funciona igual, solo que más lento
         return lambda f: f
 
 MOTIVOS = {1: "stop-loss", 2: "take-profit", 3: "stop móvil", 4: "señal de salida", 5: "tiempo", 6: "fin de datos"}
-TIPOS = {"pct": 0, "atr": 1, "ninguno": 2}
+TIPOS = {"pct": 0, "atr": 1, "ninguno": 2, "rango": 3}
 
 
 @dataclass(frozen=True)
 class Salidas:
-    stop_tipo: str = "atr"     # "pct" (% del precio) o "atr" (múltiplos de ATR)
+    stop_tipo: str = "atr"     # "pct" (% del precio), "atr" (múltiplos de ATR) o "rango" (mínimo de las últimas N velas)
     stop: float = 2.0
     tp_tipo: str = "atr"       # "pct", "atr" o "ninguno"
     tp: float = 4.0
     trailing: float = 0.0      # stop móvil, mismo tipo que el stop (0 = sin stop móvil)
     max_velas: int = 0         # salida por tiempo (0 = sin límite)
+    salida_contraria: bool = False  # salir si aparece la señal opuesta (la aplica quien arma las señales)
 
     def validar(self):
-        if self.stop_tipo not in ("pct", "atr") or not self.stop or self.stop <= 0:
-            raise ValueError("Toda operación necesita stop-loss: stop_tipo 'pct' o 'atr' y stop > 0")
-        if self.tp_tipo not in TIPOS:
+        if self.stop_tipo not in ("pct", "atr", "rango") or not self.stop or self.stop <= 0:
+            raise ValueError("Toda operación necesita stop-loss: stop_tipo 'pct', 'atr' o 'rango' y stop > 0")
+        if self.tp_tipo not in ("pct", "atr", "ninguno"):
             raise ValueError(f"tp_tipo inválido: {self.tp_tipo}")
 
 
@@ -71,7 +73,7 @@ def _cerrar(precio, lado, entrada, dist, nocional, fund_u, comision, slippage):
 @njit(cache=True)
 def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long, sal_short, funding,
             stop_tipo, stop_val, tp_tipo, tp_val, trail_val, max_velas, comision, slippage, retraso,
-            riesgo, apal_max, slip_stop):
+            riesgo, apal_max, slip_stop, dist_long, dist_short):
     n = len(cierre)
     cap = n // 2 + 2
     t_ent = np.empty(cap, np.int64)
@@ -100,6 +102,7 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
     pend_lado = 0
     pend_idx = -1
     pend_atr = 0.0
+    pend_dist = 0.0
 
     for i in range(n):
         # 1) entrada pendiente: se ejecuta en la apertura de esta vela
@@ -108,7 +111,12 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
             pend_lado = 0
             if pos == 0:
                 pe = apertura[i] * (1.0 + slippage * lado)
-                d = pe * stop_val / 100.0 if stop_tipo == 0 else pend_atr * stop_val
+                if stop_tipo == 0:
+                    d = pe * stop_val / 100.0
+                elif stop_tipo == 3:
+                    d = pend_dist
+                else:
+                    d = pend_atr * stop_val
                 if d > 0.0 and not np.isnan(d):
                     pos = lado
                     entrada = pe
@@ -193,9 +201,9 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
         # 5) nueva señal de entrada (al cierre): se ejecuta 1 + retraso velas después
         if pos == 0 and pend_lado == 0 and i + 1 + retraso < n:
             if ent_long[i] and not ent_short[i]:
-                pend_lado = 1; pend_idx = i + 1 + retraso; pend_atr = atr[i]
+                pend_lado = 1; pend_idx = i + 1 + retraso; pend_atr = atr[i]; pend_dist = dist_long[i]
             elif ent_short[i] and not ent_long[i]:
-                pend_lado = -1; pend_idx = i + 1 + retraso; pend_atr = atr[i]
+                pend_lado = -1; pend_idx = i + 1 + retraso; pend_atr = atr[i]; pend_dist = dist_short[i]
 
     if pos != 0:
         ps, ret, r = _cerrar(cierre[n - 1], pos, entrada, dist, nocional, fund_u, comision, slippage)
@@ -225,7 +233,7 @@ def _bool(arr, n):
 def backtest(velas: pd.DataFrame, ent_long, ent_short, salidas: Salidas, costos: Costos = Costos(),
              riesgo_pct: float = 1.0, apalancamiento_max: float = 3.0, sal_long=None, sal_short=None,
              funding: Optional[np.ndarray] = None, retraso: int = 0, atr_periodo: int = 14,
-             atr_serie: Optional[np.ndarray] = None) -> Resultado:
+             atr_serie: Optional[np.ndarray] = None, dist_rango: Optional[tuple] = None) -> Resultado:
     """Simula una estrategia sobre `velas` (columnas ts, open, high, low, close, volume)."""
     salidas.validar()
     n = len(velas)
@@ -235,6 +243,12 @@ def backtest(velas: pd.DataFrame, ent_long, ent_short, salidas: Salidas, costos:
     c = velas["close"].to_numpy(dtype=float)
     if atr_serie is None:
         atr_serie = calcular_atr(velas["high"], velas["low"], velas["close"], atr_periodo).to_numpy(dtype=float)
+    if salidas.stop_tipo == "rango":
+        if dist_rango is None:
+            raise ValueError("El stop 'rango' necesita las distancias al borde del rango (dist_rango)")
+        d_l, d_s = (np.asarray(x, dtype=float) for x in dist_rango)
+    else:
+        d_l = d_s = np.zeros(n)
     fund = np.zeros(n) if (funding is None or not costos.usar_funding) else np.asarray(funding, dtype=float)
 
     res = _nucleo(o, h, lo, c, np.asarray(atr_serie, dtype=float), _bool(ent_long, n), _bool(ent_short, n),
@@ -242,7 +256,7 @@ def backtest(velas: pd.DataFrame, ent_long, ent_short, salidas: Salidas, costos:
                   TIPOS[salidas.stop_tipo], float(salidas.stop), TIPOS[salidas.tp_tipo], float(salidas.tp),
                   float(salidas.trailing), int(salidas.max_velas), costos.comision_pct / 100.0,
                   costos.slippage_pct / 100.0, int(retraso), riesgo_pct / 100.0, float(apalancamiento_max),
-                  costos.slippage_stop_pct / 100.0)
+                  costos.slippage_stop_pct / 100.0, d_l, d_s)
     ent, sal, lado, pe, ps, ret, r, mot, fu, noc = res
     ts = velas["ts"].to_numpy(dtype="int64")
     ops = pd.DataFrame({

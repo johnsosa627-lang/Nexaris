@@ -6,8 +6,11 @@ cualquier otra, y tienen que pasar los mismos filtros y el examen final. Ser fam
 import copy
 
 
-def _s(stop_tipo, stop, tp_tipo="ninguno", tp=0.0, trailing=0.0, max_velas=0):
-    return {"stop_tipo": stop_tipo, "stop": stop, "tp_tipo": tp_tipo, "tp": tp, "trailing": trailing, "max_velas": max_velas}
+def _s(stop_tipo, stop, tp_tipo="ninguno", tp=0.0, trailing=0.0, max_velas=0, contraria=False):
+    s = {"stop_tipo": stop_tipo, "stop": stop, "tp_tipo": tp_tipo, "tp": tp, "trailing": trailing, "max_velas": max_velas}
+    if contraria:
+        s["salida_contraria"] = True
+    return s
 
 
 FAMOSAS = [
@@ -38,6 +41,21 @@ FAMOSAS = [
      "reglas": [{"tipo": "cruce_medias", "media": "ema", "rapida": 8, "lenta": 21},
                 {"tipo": "rsi_filtro", "n": 14, "op": ">", "nivel": 50}],
      "salidas": _s("atr", 1.5, "atr", 3.0)},
+    # Familia "ruptura de consolidación" (parámetros fijados ANTES de probar, sin mirar resultados ni el examen):
+    # rango de 20 velas con alto menor a 4 ATR; stop debajo del rango; stop móvil de 3 ATR; salida por tiempo
+    # si la ruptura no avanza en 48 velas. Variantes: sin filtro, con tendencia, con expansión de ATR, con BTC.
+    {"famosa": "Ruptura de consolidación (sin filtros)", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_rango", "n": 20, "ancho": 4.0}],
+     "salidas": _s("rango", 20, trailing=3.0, max_velas=48)},
+    {"famosa": "Ruptura de consolidación con tendencia (media 200)", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_rango", "n": 20, "ancho": 4.0}, {"tipo": "tendencia", "media": "ema", "n": 200}],
+     "salidas": _s("rango", 20, trailing=3.0, max_velas=48)},
+    {"famosa": "Ruptura de consolidación con expansión de volatilidad", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_rango", "n": 20, "ancho": 4.0}, {"tipo": "volatilidad", "op": ">", "nivel": 1.0}],
+     "salidas": _s("rango", 20, trailing=3.0, max_velas=48)},
+    {"famosa": "Ruptura de consolidación a favor de Bitcoin, con salida por señal contraria", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_rango", "n": 20, "ancho": 4.0}, {"tipo": "btc_tendencia", "n": 100}],
+     "salidas": _s("rango", 20, trailing=3.0, max_velas=48, contraria=True)},
 ]
 
 

@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .estrategia import Contexto, senales
+from .estrategia import Contexto, senales, senales_crudas
 
 
 def usa_externos(estrategia: dict) -> bool:
@@ -30,9 +30,30 @@ def senal_ultima_vela(estrategia: dict, velas: pd.DataFrame, externos: Optional[
     return 0, atr
 
 
-def niveles(salidas: dict, lado: int, entrada: float, atr: float) -> Optional[dict]:
+def distancia_rango(estrategia: dict, velas: pd.DataFrame, lado: int) -> Optional[float]:
+    """Para el stop "rango": distancia del último cierre al borde del rango (igual que en las pruebas)."""
+    s = estrategia["salidas"]
+    if s["stop_tipo"] != "rango" or not lado:
+        return None
+    return float(Contexto(velas).ind("dist_rango", int(s["stop"]), lado).iloc[-1])
+
+
+def senal_contraria(estrategia: dict, velas: pd.DataFrame, lado_abierto: int, externos: Optional[dict] = None) -> bool:
+    """¿Apareció en la última vela cerrada la señal opuesta a la posición abierta? (solo si la estrategia la usa)."""
+    if not estrategia["salidas"].get("salida_contraria"):
+        return False
+    compra, venta = senales_crudas(Contexto(velas, externos), estrategia)
+    return bool(venta[-1]) if lado_abierto == 1 else bool(compra[-1])  # igual que en las pruebas
+
+
+def niveles(salidas: dict, lado: int, entrada: float, atr: float, dist_rango: Optional[float] = None) -> Optional[dict]:
     """Stop, take-profit y stop móvil a partir del precio de entrada real."""
-    dist = entrada * salidas["stop"] / 100 if salidas["stop_tipo"] == "pct" else atr * salidas["stop"]
+    if salidas["stop_tipo"] == "pct":
+        dist = entrada * salidas["stop"] / 100
+    elif salidas["stop_tipo"] == "rango":
+        dist = dist_rango  # sin la distancia del rango no se opera
+    else:
+        dist = atr * salidas["stop"]
     if not dist or dist <= 0 or np.isnan(dist):
         return None
     tp = None

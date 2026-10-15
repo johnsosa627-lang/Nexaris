@@ -21,7 +21,8 @@ from typing import Callable, Optional
 import pandas as pd
 
 from . import cuenta as C
-from .bots import cierre_de_vela, niveles, resultado, revisar_vela, senal_ultima_vela, usa_externos
+from .bots import (cierre_de_vela, distancia_rango, niveles, resultado, revisar_vela, senal_contraria,
+                   senal_ultima_vela, usa_externos)
 from .datos import tf_ms
 
 log = logging.getLogger("fabrica")
@@ -282,15 +283,23 @@ class Liga:
             for vela in nuevas.to_dict("records"):
                 self._gestionar(bot, vela)
                 bot["ultima_vela_ts"] = int(vela["ts"])
-            if len(nuevas) and fresca and bot["posicion"] is None and bot["rol"] in ("titular", "suplente"):
-                externos = None
-                if usa_externos(bot["estrategia"]):
-                    if externos_cache is None:
-                        externos_cache = self._externos(simbolo, tf, velas)
-                    externos = externos_cache
-                lado, atr = senal_ultima_vela(bot["estrategia"], velas, externos)
-                if lado:
-                    self._abrir(bot, lado, atr, velas.iloc[-1].to_dict())
+            if not (len(nuevas) and fresca and bot["rol"] in ("titular", "suplente")):
+                continue
+            if bot["posicion"] is not None and not bot["estrategia"]["salidas"].get("salida_contraria"):
+                continue
+            externos = None
+            if usa_externos(bot["estrategia"]):
+                if externos_cache is None:
+                    externos_cache = self._externos(simbolo, tf, velas)
+                externos = externos_cache
+            if bot["posicion"] is not None:
+                # Salida por señal contraria (como en las pruebas: en esta vela ya no se abre otra operación)
+                if senal_contraria(bot["estrategia"], velas, bot["posicion"]["lado"], externos):
+                    self._cerrar(bot, "señal de salida", precio_simulado=float(velas["close"].iloc[-1]))
+                continue
+            lado, atr = senal_ultima_vela(bot["estrategia"], velas, externos)
+            if lado:
+                self._abrir(bot, lado, atr, velas.iloc[-1].to_dict(), distancia_rango(bot["estrategia"], velas, lado))
         self._controlar_cuenta()
         self.guardar()
 
@@ -332,13 +341,13 @@ class Liga:
             return "take-profit"
         return "stop móvil" if pos.get("stop_movido") else "stop-loss"
 
-    def _abrir(self, bot, lado, atr, vela):
+    def _abrir(self, bot, lado, atr, vela, dist_rango=None):
         if bot["rol"] == "titular":
             bloqueo = self.puede_operar()
             if bloqueo:
                 return
             precio = self.ejecutor.precio(bot["simbolo"]) if self.con_dinero(bot) else vela["close"]
-            niv = niveles(bot["estrategia"]["salidas"], lado, precio, atr)
+            niv = niveles(bot["estrategia"]["salidas"], lado, precio, atr, dist_rango)
             if niv is None:
                 return
             capital = self.capital()
@@ -359,14 +368,14 @@ class Liga:
                 return
             if self.con_dinero(bot):
                 entrada, cantidad = self.ejecutor.abrir(bot["simbolo"], lado, cantidad)
-                niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr)
+                niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr, dist_rango)
             else:
                 entrada = precio * (1 + self.slippage * lado)
-                niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr)
+                niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr, dist_rango)
             riesgo_real = cantidad * niv["dist"]
         else:
             entrada = vela["close"] * (1 + self.slippage * lado)
-            niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr)
+            niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr, dist_rango)
             if niv is None:
                 return
             cantidad, riesgo_real = None, float(self.R["capital_inicial"]) * self.riesgo_frac

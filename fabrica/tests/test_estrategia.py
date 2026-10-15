@@ -146,3 +146,59 @@ def test_supertrend_e_ichimoku_espejo():
     for c in ({"tipo": "cambio_supertrend", "n": 10, "k": 3.0}, {"tipo": "ruptura_nube", "t": 9, "k": 26, "s": 52}):
         largo = E.condicion(ctx, c, 1)
         assert largo.sum() > 3 and (largo == E.condicion(ctx_e, c, -1)).all()
+
+
+def test_ruptura_rango_exige_consolidacion():
+    from tests.conftest import velas
+    quieto = [(100, 100.5, 99.5, 100)] * 40          # 40 velas quietas (rango de 1 punto)
+    movido = [(100 + (i % 2) * 8, 105 + (i % 2) * 8, 95 + (i % 2) * 8, 100 + (i % 2) * 8) for i in range(40)]
+    rompe = [(100, 110, 100, 109)]
+    c = {"tipo": "ruptura_rango", "n": 20, "ancho": 4.0}
+    s_quieto = E.condicion(E.Contexto(velas(quieto + rompe)), c, 1)
+    s_movido = E.condicion(E.Contexto(velas(movido + rompe)), c, 1)
+    assert s_quieto[-1] and s_quieto.sum() == 1      # rompe un rango angosto: entra
+    assert not s_movido.any()                        # rompe, pero no venía de una consolidación: no entra
+    # el espejo: la venta en corto rompe por abajo
+    baja = [(100, 100, 90, 91)]
+    assert E.condicion(E.Contexto(velas(quieto + baja)), c, -1)[-1]
+
+
+def test_stop_rango_y_salida_contraria_en_pruebas_y_en_vivo():
+    from fabrica.bots import distancia_rango, niveles, senal_contraria
+    from fabrica.generador import Evaluador
+    from fabrica.motor import Costos
+    v = velas_aleatorias(3000, semilla=11)
+    est = {"lado": "ambos", "reglas": [{"tipo": "cruce_precio_media", "media": "ema", "n": 20}],
+           "salidas": {"stop_tipo": "rango", "stop": 10, "tp_tipo": "ninguno", "tp": 0.0, "trailing": 0.0,
+                       "max_velas": 0}}
+    ev = Evaluador(v, None, Costos())
+    ops = ev.correr(est).operaciones
+    assert len(ops) > 20 and set(ops["motivo"]) <= {"stop-loss", "fin de datos"}
+    # el riesgo hasta el stop sigue siendo 1 R: ninguna pérdida por stop pasa de ~1 R (más costos y huecos)
+    assert ops.loc[ops["motivo"] == "stop-loss", "r"].min() > -1.6
+    # la distancia en vivo es la misma que usa la prueba en la última vela
+    d_vivo = distancia_rango(est, v, 1)
+    d_bt = float(E.Contexto(v).ind("dist_rango", 10, 1).iloc[-1])
+    assert d_vivo == pytest.approx(d_bt) and d_vivo > 0
+    assert niveles(est["salidas"], 1, 100.0, 1.0, None) is None       # sin distancia no se opera
+    assert niveles(est["salidas"], 1, 100.0, 1.0, d_vivo)["dist"] == pytest.approx(d_vivo)
+    # salida por señal contraria: aparece como motivo y en vivo usa la misma regla
+    est["salidas"]["salida_contraria"] = True
+    ops2 = ev.correr(est).operaciones
+    assert "señal de salida" in set(ops2["motivo"])
+    compra, venta = E.senales_crudas(E.Contexto(v), est)
+    i = int(np.flatnonzero(venta)[-1])
+    assert senal_contraria(est, v.iloc[: i + 1], 1)
+    assert senal_contraria(est, v.iloc[: i + 1], -1) == bool(compra[i])
+    est["salidas"].pop("salida_contraria")
+    assert not senal_contraria(est, v.iloc[: i + 1], 1)               # si la estrategia no la usa, nunca
+
+
+def test_sin_mirar_el_futuro_piezas_nuevas():
+    """Cortar la historia no cambia las señales ni las distancias ya calculadas (no usan velas futuras)."""
+    v = velas_aleatorias(1200, semilla=12)
+    corto, largo = E.Contexto(v.iloc[:800]), E.Contexto(v)
+    for c in ({"tipo": "ruptura_rango", "n": 20, "ancho": 6.0}, {"tipo": "cambio_supertrend", "n": 10, "k": 3.0},
+              {"tipo": "ruptura_nube", "t": 9, "k": 26, "s": 52}, {"tipo": "ruptura_compresion", "n": 20, "m": 50}):
+        assert (E.condicion(corto, c, 1) == E.condicion(largo, c, 1)[:800]).all()
+    np.testing.assert_allclose(corto.ind("dist_rango", 20, 1), largo.ind("dist_rango", 20, 1)[:800])
