@@ -117,3 +117,32 @@ def test_piezas_nuevas_a_mano():
         s = E.condicion(ctx, c, 1)
         assert s.any() and not s[:3].any()
         assert "UTC" in E.describir_condicion({"tipo": "horario", "tramo": "europa"})
+
+
+def test_famosas_validas_y_en_la_poblacion():
+    from fabrica.famosas import famosas
+    from fabrica.generador import Evaluador, evolucionar
+    from fabrica.motor import Costos
+    v = velas_aleatorias(1500, semilla=7)
+    ctx = E.Contexto(v)
+    lista = famosas()
+    assert len({E.identificador(e) for e in lista}) == len(lista)
+    for e in lista:
+        assert e["reglas"][0]["tipo"] in E.DISPARADORES and all(c["tipo"] in E.FILTROS for c in e["reglas"][1:])
+        E.senales(ctx, e)
+        assert E.describir(e).startswith("[Basada en una estrategia conocida")
+        assert "famosa" not in E.mutar(np.random.default_rng(0), e) and "famosa" not in E.perturbar(np.random.default_rng(0), e)
+    arch = evolucionar(Evaluador(v, None, Costos()), np.random.default_rng(1), poblacion=20, generaciones=0,
+                       min_operaciones=10, semillas=famosas())
+    assert all(E.identificador(e) in arch for e in lista)
+
+
+def test_supertrend_e_ichimoku_espejo():
+    v = velas_aleatorias(1500, semilla=8)
+    espejo = v.copy()
+    espejo["open"], espejo["close"] = -v["open"], -v["close"]
+    espejo["high"], espejo["low"] = -v["low"], -v["high"]
+    ctx, ctx_e = E.Contexto(v), E.Contexto(espejo)
+    for c in ({"tipo": "cambio_supertrend", "n": 10, "k": 3.0}, {"tipo": "ruptura_nube", "t": 9, "k": 26, "s": 52}):
+        largo = E.condicion(ctx, c, 1)
+        assert largo.sum() > 3 and (largo == E.condicion(ctx_e, c, -1)).all()

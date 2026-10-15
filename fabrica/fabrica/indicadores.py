@@ -64,3 +64,37 @@ def adx(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14):
 def donchian(high: pd.Series, low: pd.Series, n: int = 20):
     """Máximo y mínimo de las últimas n velas (incluye la actual)."""
     return high.rolling(n).max(), low.rolling(n).min()
+
+
+def supertrend(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 10, k: float = 3.0) -> pd.Series:
+    """Dirección del Supertrend: +1 alcista, -1 bajista, NaN mientras no hay datos."""
+    a = atr(high, low, close, n).to_numpy()
+    medio = ((high + low) / 2).to_numpy()
+    c = close.to_numpy()
+    sup_b, inf_b = medio + k * a, medio - k * a
+    direccion = np.full(len(c), np.nan)
+    sup = inf = np.nan
+    d = 0
+    for i in range(len(c)):
+        if np.isnan(a[i]):
+            continue
+        if d == 0:
+            sup, inf, d = sup_b[i], inf_b[i], (1 if c[i] > medio[i] else -1)
+        else:
+            sup = sup_b[i] if (sup_b[i] < sup or c[i - 1] > sup) else sup
+            inf = inf_b[i] if (inf_b[i] > inf or c[i - 1] < inf) else inf
+            if d == 1 and c[i] < inf:
+                d = -1
+            elif d == -1 and c[i] > sup:
+                d = 1
+        direccion[i] = d
+    return pd.Series(direccion, index=close.index)
+
+
+def ichimoku_nube(high: pd.Series, low: pd.Series, t: int = 9, k: int = 26, s: int = 52):
+    """(techo, piso) de la nube de Ichimoku que corresponde a la vela actual (calculada con datos de hace k velas)."""
+    tenkan = (high.rolling(t).max() + low.rolling(t).min()) / 2
+    kijun = (high.rolling(k).max() + low.rolling(k).min()) / 2
+    a = ((tenkan + kijun) / 2).shift(k)
+    b = ((high.rolling(s).max() + low.rolling(s).min()) / 2).shift(k)
+    return pd.concat([a, b], axis=1).max(axis=1, skipna=False), pd.concat([a, b], axis=1).min(axis=1, skipna=False)

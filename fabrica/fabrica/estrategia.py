@@ -32,9 +32,11 @@ COMPRESION = [(20, 50), (20, 100), (50, 100)]  # (Bollinger, velas en las que su
 HORARIOS = ["asia", "europa", "america"]   # 0-8, 8-16 y 16-24 hora UTC
 HORAS = {"asia": (0, 8), "europa": (8, 16), "america": (16, 24)}
 VOLATILIDAD = [0.7, 1.0, 1.3]              # ATR actual / su promedio de 100 velas
+SUPERTREND = [(7, 3.0), (10, 2.0), (10, 3.0), (14, 3.0)]
+ICHIMOKU = [(9, 26, 52), (10, 30, 60), (20, 60, 120)]  # clásico, cripto y lento
 
 DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce",
-                "retroceso_rsi", "ruptura_compresion"]
+                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube"]
 FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro",
            "funding_filtro", "btc_tendencia", "miedo_codicia", "horario", "volatilidad"]
 # Datos de afuera del gráfico: la fábrica los prueba igual que todo; si no sirven, los descarta
@@ -93,6 +95,12 @@ class Contexto:
         if t == "atr_rel":  # ATR de hoy comparado con su promedio de 100 velas
             a = self.ind("atr", 14)
             return a / a.rolling(100).mean()
+        if t == "supertrend":
+            return ind.supertrend(self.h, self.l, self.c, k[1], k[2])
+        if t in ("nube_techo", "nube_piso"):
+            techo, piso = ind.ichimoku_nube(self.h, self.l, *k[1:])
+            self._cache[("nube_techo",) + k[1:]], self._cache[("nube_piso",) + k[1:]] = techo, piso
+            return techo if t == "nube_techo" else piso
         if t == "hora":
             ts = self.velas["ts"] if "ts" in self.velas else pd.Series(np.full(len(self.velas), np.nan))
             return (ts // 3_600_000) % 24
@@ -147,6 +155,12 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
         dormido = (ancho.shift(1) <= ancho.shift(1).rolling(cond["m"]).min()).to_numpy()
         banda = ctx.ind("bbs", cond["n"], 2.0) if lado == 1 else ctx.ind("bbi", cond["n"], 2.0)
         return dormido & cruza(ctx.c, banda)
+    if t == "cambio_supertrend":  # el Supertrend da vuelta a alcista (espejo: a bajista)
+        d = ctx.ind("supertrend", cond["n"], cond["k"])
+        return ((d == lado) & (d.shift(1) == -lado)).to_numpy()
+    if t == "ruptura_nube":  # el precio sale por arriba de la nube de Ichimoku (espejo: por abajo)
+        p = (cond["t"], cond["k"], cond["s"])
+        return cruza(ctx.c, ctx.ind("nube_techo", *p) if lado == 1 else ctx.ind("nube_piso", *p))
     if t == "horario":  # simétrico: solo opera en ese tramo del día
         desde, hasta = HORAS[cond["tramo"]]
         h = ctx.ind("hora")
@@ -220,6 +234,12 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
     if tipo == "ruptura_compresion":
         n, m = _elegir(rng, COMPRESION)
         return {"tipo": tipo, "n": n, "m": m}
+    if tipo == "cambio_supertrend":
+        n, k = _elegir(rng, SUPERTREND)
+        return {"tipo": tipo, "n": n, "k": k}
+    if tipo == "ruptura_nube":
+        t, k, s_ = _elegir(rng, ICHIMOKU)
+        return {"tipo": tipo, "t": t, "k": k, "s": s_}
     if tipo == "horario":
         return {"tipo": tipo, "tramo": _elegir(rng, HORARIOS)}
     if tipo == "volatilidad":
@@ -318,6 +338,10 @@ def _mover_condicion(rng, cond: dict) -> dict:
         c[clave] = _vecino(rng, RSI_CORTO_N if clave == "n" else RSI_CORTO_NIVEL, c[clave])
     elif t == "ruptura_compresion":
         c["n"], c["m"] = _vecino(rng, COMPRESION, (c["n"], c["m"]))
+    elif t == "cambio_supertrend":
+        c["n"], c["k"] = _vecino(rng, SUPERTREND, (c["n"], c["k"]))
+    elif t == "ruptura_nube":
+        c["t"], c["k"], c["s"] = _vecino(rng, ICHIMOKU, (c["t"], c["k"], c["s"]))
     elif t == "horario":
         c["tramo"] = _vecino(rng, HORARIOS, c["tramo"])
     elif t == "volatilidad":
@@ -344,6 +368,7 @@ def _mover_salidas(rng, s: dict) -> dict:
 def perturbar(rng, est: dict, cambios: int = 1) -> dict:
     """Copia con 1-2 parámetros movidos al valor vecino (prueba de sobreajuste)."""
     e = copy.deepcopy(est)
+    e.pop("famosa", None)  # ya no es la original
     for _ in range(cambios):
         objetivos = [i for i, c in enumerate(e["reglas"]) if c["tipo"] != "di_filtro"] + ["salidas"]
         obj = objetivos[int(rng.integers(len(objetivos)))]
@@ -356,6 +381,7 @@ def perturbar(rng, est: dict, cambios: int = 1) -> dict:
 
 def mutar(rng, est: dict, max_filtros: int = 2) -> dict:
     e = copy.deepcopy(est)
+    e.pop("famosa", None)
     accion = _elegir(rng, ["mover", "mover", "salidas", "disparador", "filtro", "lado"])
     if accion == "mover":
         return perturbar(rng, e, 1)
@@ -420,6 +446,10 @@ def describir_condicion(c: dict) -> str:
     if t == "ruptura_compresion":
         return (f"después de un mercado quieto (bandas de Bollinger de {c['n']} velas en su punto más angosto de "
                 f"las últimas {c['m']}), el precio rompe la banda superior")
+    if t == "cambio_supertrend":
+        return f"el Supertrend ({c['n']}, {c['k']}) pasa a alcista"
+    if t == "ruptura_nube":
+        return f"el precio sale por arriba de la nube de Ichimoku ({c['t']}, {c['k']}, {c['s']})"
     if t == "horario":
         desde, hasta = HORAS[c["tramo"]]
         return f"es horario de {c['tramo'].capitalize()} ({desde} a {hasta} h UTC)"
@@ -465,6 +495,8 @@ def describir(est: dict) -> str:
     if s["max_velas"]:
         salida += f", y cierra sí o sí tras {s['max_velas']} velas"
     texto = textos[est["lado"]] + salida + "."
+    if est.get("famosa"):
+        texto = f"[Basada en una estrategia conocida: {est['famosa']}] " + texto
     if "ATR" in texto:
         texto += " (ATR = tamaño promedio de las velas.)"
     return texto
