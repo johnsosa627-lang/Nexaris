@@ -39,6 +39,7 @@ class Servicio:
         self._actualizar_datos = actualizar_datos or self._datos_en_hilo
         self.ciclo_en_curso = None
         self.datos_en_curso = None
+        self._arranque = True  # al prender: completar los datos que falten, sin esperar al día siguiente
         self._procesado = {}
         self._ultima_vigilancia = 0.0
         self._ultimo_radar = 0.0
@@ -95,8 +96,11 @@ class Servicio:
             self.datos_en_curso = None
             log.info("Actualización de datos terminada")
 
-        if t.get("datos") != hoy and utc.hour >= self.S["hora_actualizar_datos_utc"] and self.datos_en_curso is None:
-            t["datos"] = hoy
+        toca_datos = t.get("datos") != hoy and utc.hour >= self.S["hora_actualizar_datos_utc"]
+        if (toca_datos or self._arranque) and self.datos_en_curso is None:
+            if toca_datos:
+                t["datos"] = hoy
+            self._arranque = False
             self.datos_en_curso = self._actualizar_datos()
 
         if t.get("revision") != hoy and utc.hour >= self.S["hora_revision_utc"]:
@@ -106,21 +110,35 @@ class Servicio:
         semana = f"{utc.isocalendar()[0]}-{utc.isocalendar()[1]}"
         banco_vacio = not banco(self.cfg)
         toca_semanal = utc.weekday() == self.S["dia_ciclo_semanal"] and utc.hour >= self.S["hora_ciclo_utc"]
-        primera_vez = banco_vacio and not t.get("primer_ciclo") and not t.get("ciclo") and self._hay_datos()
+        # Primer ciclo: si no inventó nada (por ejemplo, faltaban datos), se reintenta una vez por día
+        primera_vez = (banco_vacio and not t.get("primer_ciclo_ok") and t.get("primer_ciclo") != hoy
+                       and not t.get("ciclo") and self._hay_datos())
         semanal = toca_semanal and t.get("ciclo") != semana
         if self.ciclo_en_curso is None and self.datos_en_curso is None and (semanal or primera_vez):
             if semanal:
                 t["ciclo"] = semana
             else:
                 t["primer_ciclo"] = hoy
-            self.enviar("🏭 Arranca un ciclo de la fábrica: inventar, filtrar y examinar estrategias nuevas. "
-                        "Te aviso cuando termine.")
-            self.ciclo_en_curso = self._lanzar_ciclo()
+            self._arrancar_ciclo()
 
         if local.hour >= self.S["hora_resumen"] and t.get("noche") != local.date().isoformat():
             t["noche"] = local.date().isoformat()
             self.enviar(self.liga.texto_noche())
         self.liga.guardar()
+
+    def _arrancar_ciclo(self):
+        self.enviar("🏭 Arranca un ciclo de la fábrica: inventar, filtrar y examinar estrategias nuevas. "
+                    "Te aviso cuando termine.")
+        self.ciclo_en_curso = self._lanzar_ciclo()
+
+    def _inventadas_ultimo_ciclo(self) -> int:
+        try:
+            with open(os.path.join(self.cfg["salida"]["carpeta"], "ultimo_ciclo.txt"), encoding="utf-8") as f:
+                carpeta = os.path.join(self.cfg["salida"]["carpeta"], f.read().strip())
+            with open(os.path.join(carpeta, "embudo.json"), encoding="utf-8") as f:
+                return int(json.load(f)["embudo"].get("inventadas", 0))
+        except (OSError, ValueError, KeyError):
+            return 0
 
     def _hay_datos(self) -> bool:
         carpeta = os.path.join(self.cfg["datos"]["carpeta"], "velas")
@@ -132,6 +150,8 @@ class Servicio:
 
     def _al_terminar_ciclo(self):
         self.ciclo_en_curso = None
+        if self._inventadas_ultimo_ciclo() > 0:
+            self.liga.e["tareas"]["primer_ciclo_ok"] = True
         nuevos = self.liga.sincronizar_banco(banco(self.cfg))
         self.liga.completar_titulares()
         self.enviar(self.resumen_fabrica() + f"\n\nSe sumaron {len(nuevos)} suplente(s) nuevos a la liga.")
@@ -194,9 +214,21 @@ class Servicio:
         tg.registrar("/reanudar", self.cmd_reanudar)
         tg.registrar("/cerrar_todo", self.cmd_cerrar_todo)
         tg.registrar("/confirmar_real", self.cmd_confirmar_real)
+        tg.registrar("/ciclo", self.cmd_ciclo)
         tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
+
+    def cmd_ciclo(self, a=""):
+        """Correr la fábrica ahora (no toca la plata: solo inventa y examina estrategias)."""
+        if self.ciclo_en_curso is not None:
+            return "🏭 Ya hay un ciclo de la fábrica en curso. Te aviso cuando termine."
+        if self.datos_en_curso is not None:
+            return "⏳ Estoy bajando los datos de Binance. Probá /ciclo de nuevo en un rato."
+        if not self._hay_datos():
+            return "Todavía no hay datos de precios para trabajar. Probá más tarde."
+        self._arrancar_ciclo()
+        return "✅ Listo, la fábrica arrancó (puede tardar varias horas)."
 
     def cmd_pausar(self, a=""):
         self.liga.e["pausado"] = True
@@ -234,6 +266,7 @@ class Servicio:
 AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/hoy — resultado de hoy\n"
          "/bots — titulares y suplentes\n/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
+         "/ciclo — correr la fábrica ahora (inventar y examinar estrategias)\n"
          "/pausar — no abrir operaciones nuevas\n/reanudar — seguir\n/cerrar_todo — cerrar todo y pausar")
 
 

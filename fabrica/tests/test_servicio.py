@@ -127,3 +127,44 @@ def test_comandos(tmp_path):
     n = len(respuestas)
     mandar("/cerrar_todo", chat=999)  # chat ajeno: se ignora
     assert len(respuestas) == n
+
+
+def _embudo(inventadas):
+    from fabrica.filtros import FILTROS
+    return {"inventadas": inventadas, "ya_examinadas_antes": 0, "candidatas": 0, **{c: 0 for c, _, _ in FILTROS}}
+
+
+def test_al_prender_completa_datos_y_reintenta_un_primer_ciclo_vacio(tmp_path):
+    s, liga, t, llamadas, enviados = armar(tmp_path, _ts("2026-10-15T05:00:00"))
+    os.makedirs(os.path.join(s.cfg["datos"]["carpeta"], "velas"))
+    open(os.path.join(s.cfg["datos"]["carpeta"], "velas", "AAAUSDT_1h.csv.gz"), "w").close()
+    # estado guardado de antes: ya "bajó datos" hoy y ya hizo un primer ciclo ayer, pero no inventó nada
+    liga.e["tareas"].update(datos="2026-10-15", primer_ciclo="2026-10-14")
+    carpeta = os.path.join(s.cfg["salida"]["carpeta"], "ciclo_viejo")
+    os.makedirs(carpeta)
+    with open(os.path.join(carpeta, "embudo.json"), "w") as f:
+        json.dump({"embudo": _embudo(0)}, f)
+    with open(os.path.join(s.cfg["salida"]["carpeta"], "ultimo_ciclo.txt"), "w") as f:
+        f.write("ciclo_viejo")
+    s.paso()
+    assert llamadas["datos"] == 1  # al prender completa los datos aunque "ya tocaba" hoy
+    s.paso()
+    assert len(llamadas["ciclos"]) == 1  # y reintenta el primer ciclo, que había salido vacío
+    with open(os.path.join(carpeta, "embudo.json"), "w") as f:
+        json.dump({"embudo": _embudo(5000)}, f)
+    llamadas["ciclos"][0].listo = True
+    s.paso()
+    assert liga.e["tareas"]["primer_ciclo_ok"]
+    t["ahora"] = _ts("2026-10-16T05:00:00")
+    s.paso()
+    s.paso()
+    assert len(llamadas["ciclos"]) == 1 and llamadas["datos"] == 2  # ya salió bien: no se repite
+
+
+def test_comando_ciclo(tmp_path):
+    s, liga, t, llamadas, _ = armar(tmp_path, _ts("2026-10-15T05:00:00"))
+    assert "no hay datos" in s.cmd_ciclo()
+    os.makedirs(os.path.join(s.cfg["datos"]["carpeta"], "velas"))
+    open(os.path.join(s.cfg["datos"]["carpeta"], "velas", "AAAUSDT_1h.csv.gz"), "w").close()
+    assert "arrancó" in s.cmd_ciclo() and len(llamadas["ciclos"]) == 1
+    assert "Ya hay un ciclo" in s.cmd_ciclo() and len(llamadas["ciclos"]) == 1
