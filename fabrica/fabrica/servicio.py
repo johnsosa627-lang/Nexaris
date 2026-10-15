@@ -40,6 +40,8 @@ class Servicio:
         self.ciclo_en_curso = None
         self.datos_en_curso = None
         self._arranque = True  # al prender: completar los datos que falten, sin esperar al día siguiente
+        self._prendida_ms = int(reloj() * 1000)
+        self._chequear = False  # chequeo de salud pendiente (después de cada descarga de datos)
         self._procesado = {}
         self._ultima_vigilancia = 0.0
         self._ultimo_radar = 0.0
@@ -94,6 +96,7 @@ class Servicio:
             self._al_terminar_ciclo()
         if self.datos_en_curso is not None and not self.datos_en_curso.is_alive():
             self.datos_en_curso = None
+            self._chequear = True
             log.info("Actualización de datos terminada")
 
         toca_datos = t.get("datos") != hoy and utc.hour >= self.S["hora_actualizar_datos_utc"]
@@ -121,10 +124,27 @@ class Servicio:
                 t["primer_ciclo"] = hoy
             self._arrancar_ciclo()
 
+        if self._chequear and self.datos_en_curso is None:
+            self._chequear = False
+            self.chequeo_salud(avisar=True)
+
         if local.hour >= self.S["hora_resumen"] and t.get("noche") != local.date().isoformat():
             t["noche"] = local.date().isoformat()
             self.enviar(self.liga.texto_noche())
         self.liga.guardar()
+
+    def chequeo_salud(self, avisar: bool = False) -> str:
+        """Revisa datos, fábrica y disco. Con avisar=True manda Telegram solo si hay problemas (corre tras cada
+        descarga de datos: al prender y una vez por día, así un problema que sigue se recuerda a diario)."""
+        from . import salud
+        try:
+            r = salud.chequeo(self.cfg, int(self.reloj() * 1000), self.ciclo_en_curso is not None, self._prendida_ms)
+        except Exception as e:  # noqa: BLE001 - el chequeo nunca debe frenar el servicio
+            log.exception("Falló el chequeo de salud")
+            return f"🩺 No pude hacer el chequeo de salud: {e}"
+        if avisar and r["problemas"]:
+            self.enviar(salud.texto(r, completo=False))
+        return salud.texto(r)
 
     def _arrancar_ciclo(self):
         self.enviar("🏭 Arranca un ciclo de la fábrica: inventar, filtrar y examinar estrategias nuevas. "
@@ -215,6 +235,7 @@ class Servicio:
         tg.registrar("/cerrar_todo", self.cmd_cerrar_todo)
         tg.registrar("/confirmar_real", self.cmd_confirmar_real)
         tg.registrar("/ciclo", self.cmd_ciclo)
+        tg.registrar("/salud", lambda a: self.chequeo_salud())
         tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
@@ -267,6 +288,7 @@ AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/h
          "/bots — titulares y suplentes\n/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/ciclo — correr la fábrica ahora (inventar y examinar estrategias)\n"
+         "/salud — chequeo: ¿datos completos? ¿la fábrica trabaja? ¿hay disco?\n"
          "/pausar — no abrir operaciones nuevas\n/reanudar — seguir\n/cerrar_todo — cerrar todo y pausar")
 
 
