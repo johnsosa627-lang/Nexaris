@@ -93,3 +93,15 @@ def test_revisar_calidad_detecta_huecos():
     assert c["velas"] == 97 and c["huecos"] == 2 and c["velas_faltantes"] == 3 and c["incoherentes"] == 0
     df.loc[5, "high"] = 0.5
     assert datos.revisar_calidad(df, "1h")["incoherentes"] == 1
+
+
+def test_descarga_sigue_aunque_binance_devuelva_menos_que_el_limite():
+    """Binance a veces entrega 1000 velas aunque se pidan 1500: igual hay que bajar todo hasta hoy."""
+    fin = T0 + 5000 * H
+
+    class Recortado(ClienteFalso):
+        def fetch_ohlcv(self, simbolo, tf, since, limit):
+            return super().fetch_ohlcv(simbolo, tf, since, min(limit, 1000))
+
+    df = datos.descargar_velas(Recortado(fin), "X", "1h", T0, ahora_ms=fin, limite=1500)
+    assert len(df) == 5000
