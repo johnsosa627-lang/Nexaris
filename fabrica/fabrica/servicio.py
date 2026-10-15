@@ -160,6 +160,19 @@ class Servicio:
         except (OSError, ValueError, KeyError):
             return 0
 
+    def _motivo_ciclo_vacio(self) -> str:
+        try:
+            with open(os.path.join(self.cfg["salida"]["carpeta"], "ultimo_ciclo.txt"), encoding="utf-8") as f:
+                carpeta = os.path.join(self.cfg["salida"]["carpeta"], f.read().strip())
+            with open(os.path.join(carpeta, "embudo.json"), encoding="utf-8") as f:
+                mercados = json.load(f).get("por_mercado", [])
+        except (OSError, ValueError):
+            return "no encontré el detalle del ciclo"
+        errores = [f"{m['simbolo'].split('/')[0]} {m['tf']}: {m['error']}" for m in mercados if m.get("error")]
+        if not errores:
+            return "ningún mercado dio error; revisá /salud"
+        return "; ".join(errores[:4]) + (f" (y {len(errores) - 4} más)" if len(errores) > 4 else "")
+
     def _hay_datos(self) -> bool:
         carpeta = os.path.join(self.cfg["datos"]["carpeta"], "velas")
         return os.path.isdir(carpeta) and len(os.listdir(carpeta)) > 0
@@ -169,9 +182,17 @@ class Servicio:
         return c.poll() is not None if hasattr(c, "poll") else not c.is_alive()
 
     def _al_terminar_ciclo(self):
-        self.ciclo_en_curso = None
+        proceso, self.ciclo_en_curso = self.ciclo_en_curso, None
+        codigo = getattr(proceso, "returncode", 0)
+        if codigo:  # el ciclo se cortó: lo que muestre /fabrica sería del ciclo anterior
+            self.enviar(f"⚠️ El ciclo de la fábrica se cortó con un error (código {codigo}). El detalle quedó en "
+                        "ultimo_ciclo.log. Se vuelve a intentar en el próximo turno; también podés mandar /ciclo.")
+            return
         if self._inventadas_ultimo_ciclo() > 0:
             self.liga.e["tareas"]["primer_ciclo_ok"] = True
+        else:
+            self.enviar("⚠️ Este ciclo no inventó NINGUNA estrategia, así que todo lo demás también da cero. "
+                        f"Motivo: {self._motivo_ciclo_vacio()}. Se reintenta solo; también podés mandar /ciclo.")
         nuevos = self.liga.sincronizar_banco(banco(self.cfg))
         self.liga.completar_titulares()
         self.enviar(self.resumen_fabrica() + f"\n\nSe sumaron {len(nuevos)} suplente(s) nuevos a la liga.")

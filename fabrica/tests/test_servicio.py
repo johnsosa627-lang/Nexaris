@@ -176,3 +176,27 @@ def test_chequeo_de_salud_avisa_despues_de_bajar_datos(tmp_path):
     s.paso()  # terminó la descarga: chequeo, y como no hay datos, avisa
     assert any("Chequeo de salud" in m and "no hay datos" in m for m in enviados)
     assert "Chequeo de salud" in s.chequeo_salud()
+
+
+def test_avisa_enseguida_si_el_ciclo_sale_vacio_o_se_corta(tmp_path):
+    s, liga, t, llamadas, enviados = armar(tmp_path, _ts("2026-10-15T05:00:00"))
+    carpeta = os.path.join(s.cfg["salida"]["carpeta"], "ciclo_20261015_050000")
+    os.makedirs(carpeta)
+    with open(os.path.join(carpeta, "embudo.json"), "w") as f:
+        json.dump({"embudo": _embudo(0), "por_mercado": [
+            {"simbolo": "BTC/USDT:USDT", "tf": "1h", "error": "pocos datos (1000 velas)"},
+            {"simbolo": "ETH/USDT:USDT", "tf": "4h", "error": None}]}, f)
+    with open(os.path.join(s.cfg["salida"]["carpeta"], "ultimo_ciclo.txt"), "w") as f:
+        f.write("ciclo_20261015_050000")
+    s.ciclo_en_curso = Proceso()
+    s._al_terminar_ciclo()
+    aviso = [m for m in enviados if "NINGUNA estrategia" in m]
+    assert aviso and "BTC 1h: pocos datos (1000 velas)" in aviso[0] and "ETH" not in aviso[0]
+    assert not liga.e["tareas"].get("primer_ciclo_ok")
+    # un ciclo que se corta con error no se presenta como resultado
+    p = Proceso()
+    p.returncode = 1
+    s.ciclo_en_curso = p
+    n = len(enviados)
+    s._al_terminar_ciclo()
+    assert len(enviados) == n + 1 and "se cortó con un error" in enviados[-1]
