@@ -202,3 +202,47 @@ def test_sin_mirar_el_futuro_piezas_nuevas():
               {"tipo": "ruptura_nube", "t": 9, "k": 26, "s": 52}, {"tipo": "ruptura_compresion", "n": 20, "m": 50}):
         assert (E.condicion(corto, c, 1) == E.condicion(largo, c, 1)[:800]).all()
     np.testing.assert_allclose(corto.ind("dist_rango", 20, 1), largo.ind("dist_rango", 20, 1)[:800])
+
+
+def _velas_15m(desde_utc, n, precio=100.0):
+    import pandas as pd
+    from tests.conftest import velas
+    t0 = int(pd.Timestamp(desde_utc, tz="UTC").timestamp() * 1000)
+    return velas([(precio, precio + 0.1, precio - 0.1, precio)] * n, t0=t0, paso=15 * 60_000)
+
+
+def test_orb_nueva_york_con_horario_de_verano():
+    c = {"tipo": "ruptura_apertura", "sesion": "nueva_york", "m": 15}
+    # invierno (enero): 9:30 en Nueva York = 14:30 UTC; verano (julio): 13:30 UTC
+    for dia, hora_utc in (("2024-01-10", 14), ("2024-07-10", 13)):
+        v = _velas_15m(f"{dia} 00:00", 96)
+        i_rango = hora_utc * 4 + 2                       # vela de las HH:30 UTC
+        v.loc[i_rango, ["high", "low"]] = [101.0, 99.0]  # rango inicial: 99 a 101
+        v.loc[i_rango + 3, ["high", "close"]] = [102.0, 101.5]  # 45 minutos después rompe por arriba
+        s = E.condicion(E.Contexto(v), c, 1)
+        assert s[i_rango + 3] and s.sum() == 1, dia
+        assert not E.condicion(E.Contexto(v), c, -1).any()
+    # los fines de semana la bolsa de Nueva York no abre
+    v = _velas_15m("2024-01-13 00:00", 96)               # sábado
+    v.loc[58, ["high", "low"]] = [101.0, 99.0]
+    v.loc[61, ["high", "close"]] = [102.0, 101.5]
+    assert not E.condicion(E.Contexto(v), c, 1).any()
+
+
+def test_rango_de_asia_y_sin_mirar_el_futuro():
+    c = {"tipo": "ruptura_apertura", "sesion": "asia", "m": 480}
+    v = _velas_15m("2024-03-05 00:00", 96)
+    v.loc[10, ["high"]] = 101.0                          # máximo de Asia (0 a 8 h UTC)
+    v.loc[20, ["low"]] = 98.0
+    v.loc[34, ["low", "close"]] = [97.0, 97.5]           # 8:30 UTC rompe por abajo
+    assert E.condicion(E.Contexto(v), c, -1)[34] and E.condicion(E.Contexto(v), c, -1).sum() == 1
+    # una ruptura antes de que termine el rango no cuenta
+    v2 = _velas_15m("2024-03-05 00:00", 96)
+    v2.loc[10, ["high", "close"]] = [103.0, 102.5]
+    assert not E.condicion(E.Contexto(v2), c, 1)[:32].any()
+    # cortar la historia no cambia las señales ya calculadas
+    vl = velas_aleatorias(3000, semilla=4, paso=15 * 60_000)
+    for ses, m in (("nueva_york", 15), ("londres", 60), ("asia", 480)):
+        cc = {"tipo": "ruptura_apertura", "sesion": ses, "m": m}
+        corto = E.condicion(E.Contexto(vl.iloc[:1700]), cc, 1)
+        assert (corto == E.condicion(E.Contexto(vl), cc, 1)[:1700]).all()

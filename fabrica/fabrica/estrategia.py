@@ -37,10 +37,17 @@ VOLATILIDAD = [0.7, 1.0, 1.3]              # ATR actual / su promedio de 100 vel
 SUPERTREND = [(7, 3.0), (10, 2.0), (10, 3.0), (14, 3.0)]
 ICHIMOKU = [(9, 26, 52), (10, 30, 60), (20, 60, 120)]  # clásico, cripto y lento
 RANGO_N = [20, 30, 50]                     # velas de la consolidación
+# Rupturas de apertura de sesión (hora local de cada plaza, con horario de verano). m = minutos del rango inicial.
+SESIONES = {
+    "nueva_york": {"zona": "America/New_York", "hora": (9, 30), "minutos": [15, 30, 60], "habiles": True},
+    "londres": {"zona": "Europe/London", "hora": (8, 0), "minutos": [15, 30, 60], "habiles": True},
+    "asia": {"zona": "UTC", "hora": (0, 0), "minutos": [480], "habiles": False},  # rango 0-8 UTC, se rompe en Londres
+}
+VENTANA_APERTURA_MIN = 240                 # se busca la ruptura en las 4 horas siguientes al rango
 RANGO_ANCHO = [3.0, 4.0, 6.0]              # alto máximo del rango, en ATR (más chico = más quieto)
 
 DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce",
-                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube", "ruptura_rango"]
+                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube", "ruptura_rango", "ruptura_apertura"]
 FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro",
            "funding_filtro", "btc_tendencia", "miedo_codicia", "horario", "volatilidad"]
 # Datos de afuera del gráfico: la fábrica los prueba igual que todo; si no sirven, los descarta
@@ -114,6 +121,11 @@ class Contexto:
             else:
                 d = self.h.rolling(k[1]).max() - self.c
             return np.maximum(d + 0.25 * a, 0.5 * a)  # nunca un stop pegado al precio
+        if t in ("ap_alto", "ap_bajo", "ap_ventana"):
+            alto, bajo, ventana = self._apertura(k[1], k[2])
+            self._cache[("ap_alto",) + k[1:]], self._cache[("ap_bajo",) + k[1:]] = alto, bajo
+            self._cache[("ap_ventana",) + k[1:]] = ventana
+            return {"ap_alto": alto, "ap_bajo": bajo, "ap_ventana": ventana}[t]
         if t == "hora":
             ts = self.velas["ts"] if "ts" in self.velas else pd.Series(np.full(len(self.velas), np.nan))
             return (ts // 3_600_000) % 24
@@ -122,6 +134,35 @@ class Contexto:
         if t == "ext_ema":
             return self.ind("ext", k[1]).ewm(span=k[2], adjust=False, min_periods=k[2]).mean()
         raise ValueError(f"Indicador desconocido: {k}")
+
+
+    def _apertura(self, sesion: str, minutos: int):
+        """Máximo y mínimo del rango inicial de la sesión de cada día, y en qué velas vale buscar la ruptura.
+
+        Solo usa velas ya terminadas: el rango se completa antes de que se abra la ventana de ruptura.
+        """
+        cfg = SESIONES[sesion]
+        n = len(self.velas)
+        if "ts" not in self.velas or n == 0:
+            nan = pd.Series(np.full(n, np.nan))
+            return nan, nan, np.zeros(n, dtype=bool)
+        ts = self.velas["ts"].astype("int64")
+        paso = int(ts.diff().median()) if n > 1 else 0
+        local = pd.to_datetime(ts, unit="ms", utc=True).dt.tz_convert(cfg["zona"])
+        dia = local.dt.tz_localize(None).dt.normalize()
+        h, m = cfg["hora"]
+        apertura = (dia + pd.Timedelta(hours=h, minutes=m)).dt.tz_localize(cfg["zona"], ambiguous="NaT",
+                                                                          nonexistent="NaT")
+        ap_ms = (apertura - pd.Timestamp(0, tz="UTC")) / pd.Timedelta(milliseconds=1)  # NaN si la hora no existe
+        fin_rango = ap_ms + minutos * 60_000
+        en_rango = (ts >= ap_ms) & (ts + paso <= fin_rango)
+        habil = local.dt.weekday < 5 if cfg["habiles"] else pd.Series(True, index=ts.index)
+        clave = dia.astype("int64")
+        alto = self.h.where(en_rango).groupby(clave).transform("max")
+        bajo = self.l.where(en_rango).groupby(clave).transform("min")
+        completo = en_rango.groupby(clave).transform("sum") * paso >= minutos * 60_000  # el rango tiene todas sus velas
+        ventana = (ts >= fin_rango) & (ts + paso <= fin_rango + VENTANA_APERTURA_MIN * 60_000) & habil & completo
+        return alto, bajo, ventana.fillna(False).to_numpy(dtype=bool)
 
 
 def _cruza_arriba(a, b):
@@ -178,6 +219,10 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
         quieto = (ctx.ind("rango_alto", cond["n"]) <= cond["ancho"]).to_numpy()
         nivel = ctx.ind("dch", cond["n"]) if lado == 1 else ctx.ind("dcl", cond["n"])
         return quieto & cruza(ctx.c, nivel)
+    if t == "ruptura_apertura":  # rompe el máximo del rango inicial de la sesión (espejo: el mínimo)
+        p = (cond["sesion"], cond["m"])
+        nivel = ctx.ind("ap_alto", *p) if lado == 1 else ctx.ind("ap_bajo", *p)
+        return ctx.ind("ap_ventana", *p) & cruza(ctx.c, nivel)
     if t == "horario":  # simétrico: solo opera en ese tramo del día
         desde, hasta = HORAS[cond["tramo"]]
         h = ctx.ind("hora")
@@ -270,6 +315,9 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
         return {"tipo": tipo, "t": t, "k": k, "s": s_}
     if tipo == "ruptura_rango":
         return {"tipo": tipo, "n": _elegir(rng, RANGO_N), "ancho": _elegir(rng, RANGO_ANCHO)}
+    if tipo == "ruptura_apertura":
+        sesion = _elegir(rng, list(SESIONES))
+        return {"tipo": tipo, "sesion": sesion, "m": _elegir(rng, SESIONES[sesion]["minutos"])}
     if tipo == "horario":
         return {"tipo": tipo, "tramo": _elegir(rng, HORARIOS)}
     if tipo == "volatilidad":
@@ -378,6 +426,8 @@ def _mover_condicion(rng, cond: dict) -> dict:
     elif t == "ruptura_rango":
         clave = "n" if rng.random() < 0.5 else "ancho"
         c[clave] = _vecino(rng, RANGO_N if clave == "n" else RANGO_ANCHO, c[clave])
+    elif t == "ruptura_apertura":
+        c["m"] = _vecino(rng, SESIONES[c["sesion"]]["minutos"], c["m"])
     elif t == "horario":
         c["tramo"] = _vecino(rng, HORARIOS, c["tramo"])
     elif t == "volatilidad":
@@ -401,12 +451,21 @@ def _mover_salidas(rng, s: dict) -> dict:
     return s
 
 
+def _movible(c: dict) -> bool:
+    """¿Tiene algún número que se pueda mover al valor vecino?"""
+    if c["tipo"] == "di_filtro":
+        return False
+    if c["tipo"] == "ruptura_apertura":
+        return len(SESIONES[c["sesion"]]["minutos"]) > 1
+    return True
+
+
 def perturbar(rng, est: dict, cambios: int = 1) -> dict:
     """Copia con 1-2 parámetros movidos al valor vecino (prueba de sobreajuste)."""
     e = copy.deepcopy(est)
     e.pop("famosa", None)  # ya no es la original
     for _ in range(cambios):
-        objetivos = [i for i, c in enumerate(e["reglas"]) if c["tipo"] != "di_filtro"] + ["salidas"]
+        objetivos = [i for i, c in enumerate(e["reglas"]) if _movible(c)] + ["salidas"]
         obj = objetivos[int(rng.integers(len(objetivos)))]
         if obj == "salidas":
             e["salidas"] = _mover_salidas(rng, e["salidas"])
@@ -489,6 +548,12 @@ def describir_condicion(c: dict) -> str:
     if t == "ruptura_rango":
         return (f"después de {c['n']} velas en un rango angosto (alto menor a {c['ancho']} ATR), "
                 f"el precio cierra por encima del máximo del rango")
+    if t == "ruptura_apertura":
+        if c["sesion"] == "asia":
+            return "el precio rompe por arriba el rango de la sesión de Asia (0 a 8 h UTC) en las 4 horas siguientes"
+        plaza = {"nueva_york": "Nueva York (9:30)", "londres": "Londres (8:00)"}[c["sesion"]]
+        return (f"el precio rompe por arriba el máximo de los primeros {c['m']} minutos de la apertura de {plaza}, "
+                f"en las 4 horas siguientes")
     if t == "horario":
         desde, hasta = HORAS[c["tramo"]]
         return f"es horario de {c['tramo'].capitalize()} ({desde} a {hasta} h UTC)"

@@ -20,7 +20,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Datos:** Binance Futuros por ccxt. Monedas BTC, ETH, SOL, BNB y XRP. Temporalidades 15m, 1h y 4h. Historia desde 2021-01-01, más el funding. Los **últimos 6 meses se guardan aparte como examen final** y no se usan para crear estrategias.
 - **Datos de afuera del gráfico** (se usan como piezas que también se examinan): funding, tendencia de Bitcoin como líder, índice de Miedo y Codicia.
 - **Generador:** inventa estrategias al azar y las mejora con un algoritmo genético (mezclar, mutar). Cada estrategia tiene 1 disparador, hasta 2 filtros y reglas de salida (stop, toma de ganancia, stop móvil, salida por tiempo).
-  - Disparadores: cruce de medias, precio cruza media, MACD, ruptura Donchian, rebote Bollinger, cruce de RSI, retroceso RSI-2/3, ruptura tras compresión de Bollinger, cambio de Supertrend, ruptura de la nube de Ichimoku y ruptura de consolidación (rango angosto que se rompe).
+  - Disparadores: cruce de medias, precio cruza media, MACD, ruptura Donchian, rebote Bollinger, cruce de RSI, retroceso RSI-2/3, ruptura tras compresión de Bollinger, cambio de Supertrend, ruptura de la nube de Ichimoku y ruptura de consolidación (rango angosto que se rompe) y ruptura de apertura de sesión (ORB de Nueva York 9:30, Londres 8:00 y rango de Asia).
   - Salidas: stop por %, por ATR o por "rango" (debajo del mínimo de las últimas N velas), toma de ganancia, stop móvil, salida por tiempo y salida opcional por señal contraria.
   - Filtros: tendencia, RSI, ADX, volumen, +DI/-DI, funding, tendencia de BTC, miedo/codicia, horario (Asia/Europa/América) y volatilidad (ATR relativo).
 - **Estrategias famosas como semillas** (`fabrica/famosas.py`): Tortugas 20 y 55, cruce dorado 50/200, RSI-2 de Connors, MACD + EMA200, Bollinger Squeeze, rebote Bollinger con ADX bajo (estilo Freqtrade), Supertrend 10/3, nube de Ichimoku EMA 8/21 + RSI y 4 variantes de "ruptura de consolidación" (sin filtro, con tendencia, con expansión de ATR, con BTC), con parámetros fijados antes de probar. Entran en cada ciclo y tienen que pasar los mismos exámenes.
@@ -70,7 +70,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 113 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 115 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 
