@@ -168,3 +168,11 @@ def test_comando_ciclo(tmp_path):
     open(os.path.join(s.cfg["datos"]["carpeta"], "velas", "AAAUSDT_1h.csv.gz"), "w").close()
     assert "arrancó" in s.cmd_ciclo() and len(llamadas["ciclos"]) == 1
     assert "Ya hay un ciclo" in s.cmd_ciclo() and len(llamadas["ciclos"]) == 1
+
+
+def test_chequeo_de_salud_avisa_despues_de_bajar_datos(tmp_path):
+    s, liga, t, llamadas, enviados = armar(tmp_path, _ts("2026-10-15T05:00:00"))
+    s.paso()  # baja datos (no hay ninguno todavía)
+    s.paso()  # terminó la descarga: chequeo, y como no hay datos, avisa
+    assert any("Chequeo de salud" in m and "no hay datos" in m for m in enviados)
+    assert "Chequeo de salud" in s.chequeo_salud()
