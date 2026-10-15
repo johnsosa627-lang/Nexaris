@@ -56,6 +56,20 @@ FAMOSAS = [
     {"famosa": "Ruptura de consolidación a favor de Bitcoin, con salida por señal contraria", "lado": "ambos",
      "reglas": [{"tipo": "ruptura_rango", "n": 20, "ancho": 4.0}, {"tipo": "btc_tendencia", "n": 100}],
      "salidas": _s("rango", 20, trailing=3.0, max_velas=48, contraria=True)},
+    # Rupturas de apertura de sesión (pensadas para velas de 15 minutos; parámetros clásicos, fijados antes de probar).
+    # El stop va debajo de las últimas velas (cubre el rango inicial) y se sale el mismo día (salida por tiempo).
+    {"famosa": "ORB: ruptura de los primeros 15 minutos de Nueva York (9:30)", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_apertura", "sesion": "nueva_york", "m": 15}],
+     "salidas": _s("rango", 10, max_velas=24)},
+    {"famosa": "ORB de 30 minutos de Nueva York con volumen", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_apertura", "sesion": "nueva_york", "m": 30}, {"tipo": "volumen_filtro", "mult": 1.5}],
+     "salidas": _s("rango", 10, max_velas=24)},
+    {"famosa": "Ruptura de Londres (primera hora desde las 8:00)", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_apertura", "sesion": "londres", "m": 60}],
+     "salidas": _s("rango", 10, max_velas=24)},
+    {"famosa": "Ruptura del rango de Asia en la apertura de Londres", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_apertura", "sesion": "asia", "m": 480}],
+     "salidas": _s("rango", 30, trailing=2.0, max_velas=48)},
 ]
 
 
