@@ -21,6 +21,7 @@ from .datos import (SIMBOLO_LIDER, alinear_funding, cargar_funding, cargar_miedo
 from .estrategia import describir
 from .filtros import FILTROS, Combo, aplicar_filtros, precios_al_azar
 from .generador import Evaluador, evolucionar, mejores
+from .famosas import famosas
 from .motor import Costos
 
 log = logging.getLogger("fabrica")
@@ -66,7 +67,7 @@ class Mercado:
 def _parametros_generador(g, min_ops):
     return dict(poblacion=g["poblacion"], generaciones=g["generaciones"], elite_pct=g["elite_pct"],
                 prob_cruce=g["prob_cruce"], prob_mutacion=g["prob_mutacion"], max_filtros=g["max_filtros"],
-                min_operaciones=min_ops)
+                min_operaciones=min_ops, semillas=famosas())  # también en la prueba anti-suerte: misma búsqueda
 
 
 def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:

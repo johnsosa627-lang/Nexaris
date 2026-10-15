@@ -53,7 +53,7 @@ def fitness(m: dict, est: dict, min_operaciones: int) -> float:
 
 def evolucionar(evaluador: Evaluador, rng: np.random.Generator, poblacion: int = 150, generaciones: int = 25,
                 elite_pct: float = 10, prob_cruce: float = 0.7, prob_mutacion: float = 0.4,
-                max_filtros: int = 2, min_operaciones: int = 140) -> dict:
+                max_filtros: int = 2, min_operaciones: int = 140, semillas: Optional[list] = None) -> dict:
     """Devuelve el archivo de TODAS las estrategias probadas: id -> {estrategia, fitness, metricas}."""
     archivo = {}
 
@@ -68,7 +68,9 @@ def evolucionar(evaluador: Evaluador, rng: np.random.Generator, poblacion: int =
                 archivo[clave] = {"estrategia": est, "fitness": -3.0, "metricas": {"operaciones": 0}}
         return clave
 
-    actuales = [evaluar(estrategia_aleatoria(rng, max_filtros)) for _ in range(poblacion)]
+    semillas = list(semillas or [])[:poblacion]  # estrategias conocidas: arrancan en la población
+    actuales = [evaluar(e) for e in semillas]
+    actuales += [evaluar(estrategia_aleatoria(rng, max_filtros)) for _ in range(poblacion - len(semillas))]
     n_elite = max(1, int(poblacion * elite_pct / 100))
     for gen in range(generaciones):
         orden = sorted(set(actuales), key=lambda k: archivo[k]["fitness"], reverse=True)
