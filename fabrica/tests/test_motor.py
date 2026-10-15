@@ -178,8 +178,11 @@ def test_numba_y_python_dan_lo_mismo():
     a = atr(v["high"], v["low"], v["close"]).to_numpy()
     fund = np.where(np.arange(3000) % 8 == 0, 0.0001, 0.0)
     args = (v["open"].to_numpy(), v["high"].to_numpy(), v["low"].to_numpy(), v["close"].to_numpy(), a,
-            l, c, sl, sc, fund, 1, 1.5, 0, 3.0, 2.0, 30, 0.0005, 0.0002, 0, 0.01, 3.0, 0.0003)
+            l, c, sl, sc, fund, 1, 1.5, 0, 3.0, 2.0, 30, 0.0005, 0.0002, 0, 0.01, 3.0, 0.0003, a * 2.2, a * 1.8)
     for x, y in zip(_nucleo(*args), _nucleo.py_func(*args)):
+        np.testing.assert_allclose(x, y)
+    args_rango = args[:10] + (3,) + args[11:]  # stop "rango": usa las distancias de la señal
+    for x, y in zip(_nucleo(*args_rango), _nucleo.py_func(*args_rango)):
         np.testing.assert_allclose(x, y)
 
 

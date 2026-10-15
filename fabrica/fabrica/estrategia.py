@@ -22,9 +22,11 @@ DONCHIAN = [10, 20, 30, 55, 100]
 BOLL = [(20, 2.0), (20, 2.5), (50, 2.0)]
 MACD = [(12, 26, 9), (8, 21, 5), (5, 35, 5)]
 VOL_MULT = [1.0, 1.2, 1.5, 2.0]
-STOP = {"pct": [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0], "atr": [1.0, 1.5, 2.0, 2.5, 3.0, 4.0]}
+# "rango": stop debajo del mínimo de las últimas N velas (estructura), con un margen de 0,25 ATR
+STOP = {"pct": [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0], "atr": [1.0, 1.5, 2.0, 2.5, 3.0, 4.0],
+        "rango": [5, 10, 20, 30]}
 TP = {"pct": [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0], "atr": [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0]}
-TRAILING = {"pct": [1.0, 2.0, 3.0], "atr": [1.5, 2.0, 3.0, 4.0]}
+TRAILING = {"pct": [1.0, 2.0, 3.0], "atr": [1.5, 2.0, 3.0, 4.0], "rango": [1.5, 2.0, 3.0, 4.0]}  # rango: en ATR
 MAX_VELAS = [12, 24, 48, 96, 200]
 RSI_CORTO_N = [2, 3]                       # RSI muy corto: retrocesos de 1-3 velas
 RSI_CORTO_NIVEL = [5, 10, 15, 20]
@@ -34,9 +36,11 @@ HORAS = {"asia": (0, 8), "europa": (8, 16), "america": (16, 24)}
 VOLATILIDAD = [0.7, 1.0, 1.3]              # ATR actual / su promedio de 100 velas
 SUPERTREND = [(7, 3.0), (10, 2.0), (10, 3.0), (14, 3.0)]
 ICHIMOKU = [(9, 26, 52), (10, 30, 60), (20, 60, 120)]  # clásico, cripto y lento
+RANGO_N = [20, 30, 50]                     # velas de la consolidación
+RANGO_ANCHO = [3.0, 4.0, 6.0]              # alto máximo del rango, en ATR (más chico = más quieto)
 
 DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce",
-                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube"]
+                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube", "ruptura_rango"]
 FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro",
            "funding_filtro", "btc_tendencia", "miedo_codicia", "horario", "volatilidad"]
 # Datos de afuera del gráfico: la fábrica los prueba igual que todo; si no sirven, los descarta
@@ -101,6 +105,15 @@ class Contexto:
             techo, piso = ind.ichimoku_nube(self.h, self.l, *k[1:])
             self._cache[("nube_techo",) + k[1:]], self._cache[("nube_piso",) + k[1:]] = techo, piso
             return techo if t == "nube_techo" else piso
+        if t == "rango_alto":  # alto del rango de las n velas ANTERIORES, medido en ATR de la vela anterior
+            return (self.ind("dch", k[1]) - self.ind("dcl", k[1])) / self.ind("atr", 14).shift(1)
+        if t == "dist_rango":  # distancia del cierre al borde opuesto de las últimas n velas + 0,25 ATR
+            a = self.ind("atr", 14)
+            if k[2] == 1:
+                d = self.c - self.l.rolling(k[1]).min()
+            else:
+                d = self.h.rolling(k[1]).max() - self.c
+            return np.maximum(d + 0.25 * a, 0.5 * a)  # nunca un stop pegado al precio
         if t == "hora":
             ts = self.velas["ts"] if "ts" in self.velas else pd.Series(np.full(len(self.velas), np.nan))
             return (ts // 3_600_000) % 24
@@ -161,6 +174,10 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
     if t == "ruptura_nube":  # el precio sale por arriba de la nube de Ichimoku (espejo: por abajo)
         p = (cond["t"], cond["k"], cond["s"])
         return cruza(ctx.c, ctx.ind("nube_techo", *p) if lado == 1 else ctx.ind("nube_piso", *p))
+    if t == "ruptura_rango":  # rango angosto (consolidación) y cierre que lo rompe
+        quieto = (ctx.ind("rango_alto", cond["n"]) <= cond["ancho"]).to_numpy()
+        nivel = ctx.ind("dch", cond["n"]) if lado == 1 else ctx.ind("dcl", cond["n"])
+        return quieto & cruza(ctx.c, nivel)
     if t == "horario":  # simétrico: solo opera en ese tramo del día
         desde, hasta = HORAS[cond["tramo"]]
         h = ctx.ind("hora")
@@ -191,6 +208,17 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
         nivel = cond["nivel"] if lado == 1 else 100 - cond["nivel"]
         return _comparar(ctx.ind("ext", "fng"), op, nivel)
     raise ValueError(f"Condición desconocida: {t}")
+
+
+def senales_crudas(ctx: Contexto, est: dict):
+    """(compra, venta) de las reglas sin mirar el lado permitido: sirve para la salida por señal contraria."""
+    resultado = []
+    for lado in (1, -1):
+        s = np.ones(len(ctx.velas), dtype=bool)
+        for cond in est["reglas"]:
+            s &= condicion(ctx, cond, lado)
+        resultado.append(s)
+    return resultado[0], resultado[1]
 
 
 def senales(ctx: Contexto, est: dict):
@@ -240,6 +268,8 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
     if tipo == "ruptura_nube":
         t, k, s_ = _elegir(rng, ICHIMOKU)
         return {"tipo": tipo, "t": t, "k": k, "s": s_}
+    if tipo == "ruptura_rango":
+        return {"tipo": tipo, "n": _elegir(rng, RANGO_N), "ancho": _elegir(rng, RANGO_ANCHO)}
     if tipo == "horario":
         return {"tipo": tipo, "tramo": _elegir(rng, HORARIOS)}
     if tipo == "volatilidad":
@@ -264,15 +294,18 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
 
 
 def salidas_aleatorias(rng) -> dict:
-    st = _elegir(rng, ["pct", "atr"])
-    tp_tipo = _elegir(rng, ["pct", "atr", "atr", "ninguno"]) if st == "atr" else _elegir(rng, ["pct", "pct", "atr", "ninguno"])
+    st = _elegir(rng, ["pct", "atr", "atr", "rango"])
+    tp_tipo = _elegir(rng, ["pct", "pct", "atr", "ninguno"]) if st == "pct" else _elegir(rng, ["pct", "atr", "atr", "ninguno"])
     con_trailing = rng.random() < 0.3 or tp_tipo == "ninguno"
-    return {
+    s = {
         "stop_tipo": st, "stop": _elegir(rng, STOP[st]),
         "tp_tipo": tp_tipo, "tp": _elegir(rng, TP[tp_tipo]) if tp_tipo != "ninguno" else 0.0,
         "trailing": _elegir(rng, TRAILING[st]) if con_trailing else 0.0,
         "max_velas": _elegir(rng, MAX_VELAS) if rng.random() < 0.3 else 0,
     }
+    if rng.random() < 0.15:  # la clave solo aparece si está activa (no cambia el id de las estrategias viejas)
+        s["salida_contraria"] = True
+    return s
 
 
 def estrategia_aleatoria(rng, max_filtros: int = 2) -> dict:
@@ -342,6 +375,9 @@ def _mover_condicion(rng, cond: dict) -> dict:
         c["n"], c["k"] = _vecino(rng, SUPERTREND, (c["n"], c["k"]))
     elif t == "ruptura_nube":
         c["t"], c["k"], c["s"] = _vecino(rng, ICHIMOKU, (c["t"], c["k"], c["s"]))
+    elif t == "ruptura_rango":
+        clave = "n" if rng.random() < 0.5 else "ancho"
+        c[clave] = _vecino(rng, RANGO_N if clave == "n" else RANGO_ANCHO, c[clave])
     elif t == "horario":
         c["tramo"] = _vecino(rng, HORARIOS, c["tramo"])
     elif t == "volatilidad":
@@ -450,6 +486,9 @@ def describir_condicion(c: dict) -> str:
         return f"el Supertrend ({c['n']}, {c['k']}) pasa a alcista"
     if t == "ruptura_nube":
         return f"el precio sale por arriba de la nube de Ichimoku ({c['t']}, {c['k']}, {c['s']})"
+    if t == "ruptura_rango":
+        return (f"después de {c['n']} velas en un rango angosto (alto menor a {c['ancho']} ATR), "
+                f"el precio cierra por encima del máximo del rango")
     if t == "horario":
         desde, hasta = HORAS[c["tramo"]]
         return f"es horario de {c['tramo'].capitalize()} ({desde} a {hasta} h UTC)"
@@ -487,13 +526,18 @@ def describir(est: dict) -> str:
         "long": f"Solo compra: entra cuando {reglas}.",
         "short": f"Solo vende en corto: entra en la situación opuesta a cuando {reglas}.",
     }
-    salida = f" Stop-loss a {unidad(s['stop'])} del precio de entrada"
+    if s["stop_tipo"] == "rango":
+        salida = f" Stop-loss debajo del mínimo de las últimas {int(s['stop'])} velas (más 0,25 ATR de margen)"
+    else:
+        salida = f" Stop-loss a {unidad(s['stop'])} del precio de entrada"
     if s["tp_tipo"] != "ninguno":
         salida += f", toma ganancia a {s['tp']}{'%' if s['tp_tipo'] == 'pct' else ' ATR'}"
     if s["trailing"]:
         salida += f", stop móvil a {unidad(s['trailing'])}"
     if s["max_velas"]:
         salida += f", y cierra sí o sí tras {s['max_velas']} velas"
+    if s.get("salida_contraria"):
+        salida += ", y sale antes si aparece la señal contraria"
     texto = textos[est["lado"]] + salida + "."
     if est.get("famosa"):
         texto = f"[Basada en una estrategia conocida: {est['famosa']}] " + texto

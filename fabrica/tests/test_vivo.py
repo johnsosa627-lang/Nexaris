@@ -75,6 +75,31 @@ def test_suplente_en_vivo_hace_lo_mismo_que_el_backtest(tmp_path):
     assert list(vivo["motivo"]) == list(ops_bt["motivo"])
 
 
+@pytest.mark.parametrize("salidas", [
+    {"stop_tipo": "rango", "stop": 10, "tp_tipo": "atr", "tp": 4.0, "trailing": 3.0, "max_velas": 60},
+    {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "ninguno", "tp": 0.0, "trailing": 0.0, "max_velas": 0,
+     "salida_contraria": True},
+])
+def test_stop_rango_y_salida_contraria_en_vivo_igual_que_el_backtest(tmp_path, salidas):
+    est = {"lado": "ambos", "reglas": [{"tipo": "ruptura_donchian", "n": 20}], "salidas": salidas}
+    v = serie_mercado(1200, 4, 0.2)
+    ops_bt = Evaluador(v, None, Costos(usar_funding=False)).correr(est).operaciones
+    ops_bt = ops_bt[ops_bt["motivo"] != "fin de datos"]
+    t = {"ahora": 0.0}
+    liga, _, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"])
+    liga.sincronizar_banco([registro(1, estrategia=est)])
+    bot = liga.e["bots"]["bot1"]
+    for i in range(len(v)):
+        t["ahora"] = (int(v["ts"].iloc[i]) + H) / 1000 + 1
+        liga.procesar_velas("AAA/USDT:USDT", "1h", v.iloc[: i + 1])
+    vivo = pd.DataFrame(bot["trades"])
+    assert len(vivo) == len(ops_bt) > 10
+    np.testing.assert_allclose(vivo["entrada"], ops_bt["precio_entrada"])
+    np.testing.assert_allclose(vivo["salida"], ops_bt["precio_salida"])
+    np.testing.assert_allclose(vivo["r"], ops_bt["r"], atol=1e-9)
+    assert list(vivo["motivo"]) == list(ops_bt["motivo"])
+
+
 # ------------------------------------------------------------------ banco, titulares, jubilación, ascenso
 def test_titulares_distintos_y_poco_parecidos(tmp_path):
     dias = [f"2024-02-{d:02d}" for d in range(1, 29)]

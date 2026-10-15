@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from .estrategia import Contexto, cruzar, estrategia_aleatoria, identificador, mutar, senales
+from .estrategia import Contexto, cruzar, estrategia_aleatoria, identificador, mutar, senales, senales_crudas
 from .motor import Costos, Salidas, backtest
 
 log = logging.getLogger("fabrica")
@@ -35,9 +35,18 @@ class Evaluador:
         hasta = len(self.velas) if hasta is None else hasta
         sl = slice(desde, hasta)
         fund = self.funding[sl] if self.funding is not None else None
+        s = est["salidas"]
+        sal_l = sal_c = dist = None
+        if s.get("salida_contraria"):  # sale de la compra con la señal de venta, y viceversa
+            compra, venta = senales_crudas(self.ctx, est)
+            sal_l, sal_c = venta[sl], compra[sl]
+        if s["stop_tipo"] == "rango":
+            n = int(s["stop"])
+            dist = (self.ctx.ind("dist_rango", n, 1).to_numpy()[sl], self.ctx.ind("dist_rango", n, -1).to_numpy()[sl])
         return backtest(self.velas.iloc[sl].reset_index(drop=True), largo[sl], corto[sl],
-                        Salidas(**est["salidas"]), costos or self.costos, self.riesgo_pct, self.apal,
-                        funding=fund, retraso=retraso, atr_serie=self.atr[sl])
+                        Salidas(**s), costos or self.costos, self.riesgo_pct, self.apal,
+                        sal_long=sal_l, sal_short=sal_c, funding=fund, retraso=retraso, atr_serie=self.atr[sl],
+                        dist_rango=dist)
 
 
 def fitness(m: dict, est: dict, min_operaciones: int) -> float:
