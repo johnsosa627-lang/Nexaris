@@ -85,6 +85,41 @@ def revisar_fabrica(cfg: dict, ahora_ms: int, ciclo_en_curso: bool, prendida_des
     return problemas, ok
 
 
+def revisar_bots(bots: list, ahora_ms: int) -> tuple:
+    """¿Los bots reciben velas? ¿Operan más o menos tan seguido como prometía su backtest?"""
+    problemas, ok = [], []
+    activos = [b for b in bots if b.get("rol") in ("titular", "suplente")]
+    al_dia = 0
+    for b in activos:
+        nombre = f"{b['id']} ({b['simbolo'].split('/')[0]} {b['tf']})"
+        paso = tf_ms(b["tf"])
+        desde = pd.Timestamp(b["desde"]).tz_localize("UTC") if pd.Timestamp(b["desde"]).tzinfo is None \
+            else pd.Timestamp(b["desde"])
+        vivo_ms = ahora_ms - int(desde.timestamp() * 1000)
+        ultima = int(b.get("ultima_vela_ts") or 0)
+        if ultima == 0:
+            if vivo_ms > 3 * paso + 10 * 60_000:
+                problemas.append(f"{nombre}: todavía no procesó ninguna vela.")
+            continue
+        if ahora_ms - (ultima + paso) > 3 * paso + 10 * 60_000:
+            problemas.append(f"{nombre}: no recibe velas nuevas desde hace {(ahora_ms - ultima) / 3_600_000:.0f} horas.")
+            continue
+        al_dia += 1
+        # frecuencia esperada según el backtest (operaciones por día)
+        dias_bt = sorted(b.get("retornos_diarios") or {})
+        n_bt = len(b.get("r_backtest") or [])
+        if len(dias_bt) >= 2 and n_bt:
+            span = (pd.Timestamp(dias_bt[-1]) - pd.Timestamp(dias_bt[0])).days or 1
+            esperadas = n_bt / span * vivo_ms / DIA_MS
+            hechas = len(b.get("trades") or []) + (1 if b.get("posicion") else 0)
+            if esperadas >= 4 and hechas == 0:
+                problemas.append(f"{nombre}: según sus pruebas ya debería haber operado unas {esperadas:.0f} veces y no "
+                                 "operó ninguna. Puede ser un error o que el mercado cambió.")
+    if activos:
+        ok.append(f"{al_dia} de {len(activos)} bots reciben velas al día")
+    return problemas, ok
+
+
 def revisar_disco(carpeta: str) -> tuple:
     try:
         libre = shutil.disk_usage(carpeta if os.path.isdir(carpeta) else "/").free / 1e9
@@ -96,12 +131,13 @@ def revisar_disco(carpeta: str) -> tuple:
 
 
 def chequeo(cfg: dict, ahora_ms: Optional[int] = None, ciclo_en_curso: bool = False,
-            prendida_desde_ms: Optional[int] = None) -> dict:
+            prendida_desde_ms: Optional[int] = None, bots: Optional[list] = None) -> dict:
     ahora_ms = ahora_ms or int(time.time() * 1000)
     problemas, ok = [], []
     for p, o in (revisar_datos(cfg, ahora_ms),
                  revisar_fabrica(cfg, ahora_ms, ciclo_en_curso, prendida_desde_ms or ahora_ms),
-                 revisar_disco(cfg["datos"]["carpeta"])):
+                 revisar_disco(cfg["datos"]["carpeta"]),
+                 revisar_bots(bots or [], ahora_ms)):
         problemas += p
         ok += o
     version = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")

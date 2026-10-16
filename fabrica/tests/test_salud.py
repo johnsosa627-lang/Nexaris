@@ -62,3 +62,24 @@ def test_sin_datos_y_sin_ciclo(tmp_path):
     r = salud.chequeo(cfg, T0 + 3 * DIA, prendida_desde_ms=T0)
     textos = " ".join(r["problemas"])
     assert "no hay datos" in textos and "nunca terminó un ciclo" in textos
+
+
+def test_bots_sin_velas_o_sin_operar_cuando_deberian():
+    import pandas as pd
+    ahora = int(pd.Timestamp("2026-10-20 12:00", tz="UTC").timestamp() * 1000)
+    diarios = {f"2023-01-{d:02d}": 0.01 for d in range(1, 31)}   # backtest: 300 operaciones en 29 días ≈ 10 por día
+    base = {"rol": "titular", "simbolo": "XRP/USDT:USDT", "tf": "15m", "desde": "2026-10-18T12:00:00+00:00",
+            "r_backtest": [0.5] * 300, "retornos_diarios": diarios, "trades": [], "posicion": None}
+    al_dia = {**base, "id": "b1", "ultima_vela_ts": ahora - 20 * 60_000}
+    sin_velas = {**base, "id": "b2", "ultima_vela_ts": ahora - 10 * 3_600_000}
+    nunca = {**base, "id": "b3", "ultima_vela_ts": 0}
+    lento = {**base, "id": "b4", "ultima_vela_ts": ahora - 20 * 60_000, "r_backtest": [0.5] * 3}  # ~1 cada 10 días
+    p, ok = salud.revisar_bots([al_dia, sin_velas, nunca, lento, {**base, "id": "j", "rol": "jubilado"}], ahora)
+    textos = " ".join(p)
+    assert "b1" in textos and "ya debería haber operado" in textos          # 2 días sin operar con ~10 por día
+    assert "b2" in textos and "no recibe velas" in textos
+    assert "b3" in textos and "ninguna vela" in textos
+    assert "b4" not in textos and "j " not in textos                         # opera poco: todavía es normal
+    assert ok == ["2 de 4 bots reciben velas al día"]
+    operando = {**al_dia, "trades": [{"r": 1.0}]}
+    assert salud.revisar_bots([operando], ahora)[0] == []
