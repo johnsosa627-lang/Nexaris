@@ -138,7 +138,8 @@ class Servicio:
         descarga de datos: al prender y una vez por día, así un problema que sigue se recuerda a diario)."""
         from . import salud
         try:
-            r = salud.chequeo(self.cfg, int(self.reloj() * 1000), self.ciclo_en_curso is not None, self._prendida_ms)
+            r = salud.chequeo(self.cfg, int(self.reloj() * 1000), self.ciclo_en_curso is not None, self._prendida_ms,
+                              list(self.liga.e["bots"].values()))
         except Exception as e:  # noqa: BLE001 - el chequeo nunca debe frenar el servicio
             log.exception("Falló el chequeo de salud")
             return f"🩺 No pude hacer el chequeo de salud: {e}"
