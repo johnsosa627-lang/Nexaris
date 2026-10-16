@@ -188,6 +188,11 @@ radar:
   pausa_noticia_grave_min: 60
   palabras_graves: [hack, hacked, exploit, exploited, bankrupt, bankruptcy, insolvent, insolvency,
                     halts withdrawals, suspends withdrawals, withdrawals paused, depeg, collapse, rug pull]
+  # Una noticia grave solo PAUSA si puede mover a todo el mercado: nombra a un exchange / stablecoin / red grande,
+  # o habla de mucha plata. Si no (por ejemplo, un estafador que pierde 5 millones), solo avisa.
+  afecta_mercado: [exchange, Binance, Coinbase, Bybit, OKX, Kraken, Bitfinex, Upbit, Tether, USDT, USDC,
+                   stablecoin, Bitcoin network, Ethereum network, Solana network, XRP Ledger, BNB Chain]
+  monto_grave_millones: 100
   palabras_importantes: [SEC, ETF, Fed, FOMC, interest rate, rate cut, rate hike, ban, regulation,
                          lawsuit, liquidation, liquidations, Binance, CPI, inflation]
   # Índice de Miedo y Codicia (solo avisa en los extremos)

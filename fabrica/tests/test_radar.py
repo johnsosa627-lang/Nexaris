@@ -17,6 +17,7 @@ RSS = """<?xml version="1.0"?><rss><channel>
 <item><title>Major exchange hacked, $200M stolen</title><link>https://n/1</link><pubDate>Tue, 13 Oct 2026 14:00:00 GMT</pubDate></item>
 <item><title>SEC delays decision on new ETF</title><link>https://n/2</link><pubDate>Tue, 13 Oct 2026 14:10:00 GMT</pubDate></item>
 <item><title>Bitcoin price analysis for the week</title><link>https://n/3</link><pubDate>Tue, 13 Oct 2026 14:20:00 GMT</pubDate></item>
+<item><title>Scammer gets scammed in Ledger spy-chip exploit, loses almost $5 million in bitcoin</title><link>https://n/5</link><pubDate>Tue, 13 Oct 2026 14:30:00 GMT</pubDate></item>
 <item><title>Old hack from last month</title><link>https://n/4</link><pubDate>Sun, 13 Sep 2026 14:20:00 GMT</pubDate></item>
 </channel></rss>"""
 
@@ -73,7 +74,7 @@ def armar(ahora, cambio_btc=0.0, fng=50, solo=None):
 
 def test_leer_rss():
     items = leer_rss(RSS)
-    assert len(items) == 4 and items[0][0].startswith("Major exchange") and items[0][1] == "https://n/1"
+    assert len(items) == 5 and items[0][0].startswith("Major exchange") and items[0][1] == "https://n/1"
     assert items[0][2] == _ts("2026-10-13T14:00:00")
 
 
@@ -106,6 +107,9 @@ def test_noticias_graves_pausan_e_importantes_solo_avisan():
     assert "noticia grave" in r.bloqueo()
     assert any("🚨" in m and "hacked" in m for m in msgs) and any("📰" in m and "SEC" in m for m in msgs)
     assert not any("price analysis" in m for m in msgs) and not any("Old hack" in m for m in msgs)
+    # un caso puntual (5 millones, sin exchange ni stablecoin) solo avisa: no es el motivo de la pausa
+    assert any("Scammer" in m and "solo aviso" in m and "🚨" not in m for m in msgs)
+    assert "Scammer" not in r.bloqueo()
     n = len(msgs)
     r.revisar()
     assert len(msgs) == n  # no repite avisos
