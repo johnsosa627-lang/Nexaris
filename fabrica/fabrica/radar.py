@@ -130,12 +130,26 @@ class Radar:
                 if fecha and self.reloj() - fecha > 3 * 3600:
                     continue  # solo noticias de las últimas 3 horas
                 texto = titulo.lower()
-                if any(_contiene(texto, p) for p in graves):
+                if any(_contiene(texto, p) for p in graves) and self._afecta_mercado(texto):
                     self._pausar(self.C["pausa_noticia_grave_min"], f"noticia grave: {titulo[:80]}")
                     self._avisar_una_vez(f"news-{enlace}", f"🚨 Noticia grave: {titulo}\n{enlace}\n"
                                          f"Pauso las entradas nuevas {self.C['pausa_noticia_grave_min']} min por precaución.")
+                elif any(_contiene(texto, p) for p in graves):
+                    self._avisar_una_vez(f"news-{enlace}", f"📰 Noticia: {titulo}\n{enlace}\n(Es un caso puntual que no "
+                                                           "mueve a todo el mercado: solo aviso, no pauso nada.)")
                 elif any(_contiene(texto, p) for p in importantes):
                     self._avisar_una_vez(f"news-{enlace}", f"📰 Noticia importante: {titulo}\n{enlace}\n(Solo aviso, no cambia nada.)")
+
+    def _afecta_mercado(self, texto: str) -> bool:
+        """¿La noticia grave toca algo grande (exchange, stablecoin, red) o mucha plata? Si no, no se pausa."""
+        if any(_contiene(texto, p.lower()) for p in self.C.get("afecta_mercado", [])):
+            return True
+        minimo = float(self.C.get("monto_grave_millones", 100))
+        for numero, unidad in re.findall(r"\$\s?(\d+(?:[.,]\d+)?)\s*(billion|bn|b|million|mn|m)\b", texto):
+            millones = float(numero.replace(",", ".")) * (1000 if unidad.startswith("b") else 1)
+            if millones >= minimo:
+                return True
+        return not self.C.get("afecta_mercado")  # sin lista configurada: como antes, toda noticia grave pausa
 
     def _miedo_codicia(self):
         datos = json.loads(self._bajar(URL_MIEDO_CODICIA, 3600))["data"][0]
