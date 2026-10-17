@@ -396,3 +396,13 @@ def test_bot_con_datos_externos_los_pide_en_vivo_y_si_fallan_no_entra(tmp_path):
     v2 = pd.concat([v, v.tail(1).assign(ts=v["ts"].iloc[-1] + H)], ignore_index=True)
     liga.procesar_velas("AAA/USDT:USDT", "1h", v2)
     assert liga.e["bots"]["bot1"]["posicion"] is None and any("datos externos" in m for m in mensajes)
+
+
+def test_resumen_nocturno_muestra_la_practica_de_los_suplentes(tmp_path):
+    liga, _, _ = liga_papel(tmp_path)
+    liga.sincronizar_banco([registro(1), registro(2, "BBB/USDT:USDT")])
+    sup = liga.e["bots"]["bot2"]
+    hoy = liga.ahora().isoformat(timespec="seconds")
+    sup["trades"] += [{"fecha": hoy, "rol": "suplente", "r": 1.5}, {"fecha": hoy, "rol": "suplente", "r": -1.0}]
+    texto = liga.texto_noche()
+    assert "Suplentes (práctica): 2 operación(es) hoy, 1 ganada(s), +0.5R." in texto

@@ -545,6 +545,11 @@ class Liga:
                   f"y ahora tiene {c['equity']:.2f}."]
         abiertas = sum(1 for b in self.bots("titular") if b["posicion"])
         partes.append(f"Hay {len(self.bots('titular'))} bots titulares trabajando y {abiertas} operación(es) abierta(s).")
+        practica = [t for b in self.bots() for t in b["trades"] if t["fecha"].startswith(hoy) and t["rol"] == "suplente"]
+        if practica:
+            r_total = sum(t["r"] for t in practica)
+            ganadas = sum(1 for t in practica if t["r"] > 0)
+            partes.append(f"Suplentes (práctica): {len(practica)} operación(es) hoy, {ganadas} ganada(s), {r_total:+.1f}R.")
         hechos = [e["texto"].split("\n")[0] for e in self.e["eventos"] if e["fecha"].startswith(hoy)
                   and e["texto"][:2] in ("⬆️", "👴", "🔄", "🧯", "🛑")]
         if hechos:
