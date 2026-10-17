@@ -121,6 +121,7 @@ def test_comandos(tmp_path):
     assert "Prendido de nuevo" in mandar("/reanudar confirmo") and not liga.e["apagado"]
     assert "Cerré todas" in mandar("/cerrar_todo") and liga.e["pausado"]
     assert "todavía no corrió" in mandar("/fabrica")
+    assert "todavía no corrió" in mandar("/fábrica")  # con tilde también anda
     assert "apagado" in mandar("/radar")
     for c in ("/hoy", "/bots", "/informe", "/ayuda"):
         assert mandar(c)

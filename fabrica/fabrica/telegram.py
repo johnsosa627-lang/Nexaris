@@ -1,5 +1,6 @@
 """Telegram: comandos en español y avisos. Solo responde al TELEGRAM_CHAT_ID configurado."""
 import logging
+import unicodedata
 import threading
 import time
 
@@ -49,7 +50,8 @@ class Telegram:
             log.warning("Telegram: mensaje ignorado de un chat no autorizado (%s)", chat)
             return
         partes = texto.split(maxsplit=1)
-        comando = partes[0].split("@")[0].lower()
+        # sin tildes: el teclado del celular a veces escribe "/diagnóstico" o "/fábrica"
+        comando = unicodedata.normalize("NFKD", partes[0].split("@")[0].lower()).encode("ascii", "ignore").decode()
         argumentos = partes[1].strip().lower() if len(partes) > 1 else ""
         funcion = self.comandos.get(comando)
         if not funcion:
