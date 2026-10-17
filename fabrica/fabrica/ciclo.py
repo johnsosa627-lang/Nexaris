@@ -67,7 +67,8 @@ class Mercado:
 def _parametros_generador(g, min_ops):
     return dict(poblacion=g["poblacion"], generaciones=g["generaciones"], elite_pct=g["elite_pct"],
                 prob_cruce=g["prob_cruce"], prob_mutacion=g["prob_mutacion"], max_filtros=g["max_filtros"],
-                min_operaciones=min_ops, semillas=famosas())  # también en la prueba anti-suerte: misma búsqueda
+                min_operaciones=min_ops, semillas=famosas(),
+                objetivo_anual=g.get("operaciones_por_anio_objetivo", 150))  # también en la prueba anti-suerte: misma búsqueda
 
 
 def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:

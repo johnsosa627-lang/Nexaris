@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 from fabrica.estrategia import identificador
@@ -46,3 +47,12 @@ def test_evaluador_rango_y_retraso():
     assert parte["entrada_ts"].min() >= v["ts"].iloc[1500]
     tarde = ev.correr(e, retraso=1).operaciones
     assert len(todo) > 20 and len(tarde) > 20 and not tarde["precio_entrada"].equals(todo["precio_entrada"])
+
+
+def test_fitness_prefiere_las_que_operan_seguido():
+    est = {"reglas": [{"tipo": "ruptura_donchian", "n": 20}]}
+    base = {"operaciones": 400, "retorno_pct": 30.0, "profit_factor": 1.5, "ret_dd": 3.0, "estabilidad": 0.8}
+    lenta = fitness({**base, "operaciones_por_anio": 30}, est, 100)
+    rapida = fitness({**base, "operaciones_por_anio": 200}, est, 100)
+    assert rapida > lenta > 0 and rapida / lenta == pytest.approx((1 / 0.2) ** 0.5)
+    assert fitness({**base, "operaciones_por_anio": 30}, est, 100, objetivo_anual=0) == rapida  # sin preferencia

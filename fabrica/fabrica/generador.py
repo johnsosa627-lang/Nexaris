@@ -49,20 +49,30 @@ class Evaluador:
                         dist_rango=dist)
 
 
-def fitness(m: dict, est: dict, min_operaciones: int) -> float:
-    """Puntaje para ordenar estrategias: premia ganancia/caída y curva pareja, castiga complejidad."""
+OPERACIONES_POR_ANIO_OBJETIVO = 150  # ~3 por semana: con menos, se tarda meses en saber si sirve en vivo
+
+
+def fitness(m: dict, est: dict, min_operaciones: int, objetivo_anual: float = OPERACIONES_POR_ANIO_OBJETIVO) -> float:
+    """Puntaje para ordenar estrategias: premia ganancia/caída y curva pareja, castiga complejidad.
+
+    También prefiere las que operan seguido (hasta `objetivo_anual` operaciones por año): no cambia ningún
+    examen, solo el orden en que la fábrica elige candidatas."""
     if m["operaciones"] < max(10, min_operaciones // 4):
         return -2.0
     if m["retorno_pct"] <= 0:
         return -1.0 + min(m["profit_factor"], 1.0)
     cantidad = min(1.0, m["operaciones"] / min_operaciones)
     complejidad = 1.0 - 0.05 * (len(est["reglas"]) - 1)
-    return float(min(m["ret_dd"], 50) * max(m["estabilidad"], 0.01) * cantidad * complejidad)
+    frecuencia = 1.0
+    if objetivo_anual:
+        frecuencia = max(min(m.get("operaciones_por_anio", objetivo_anual) / objetivo_anual, 1.0), 0.1) ** 0.5
+    return float(min(m["ret_dd"], 50) * max(m["estabilidad"], 0.01) * cantidad * complejidad * frecuencia)
 
 
 def evolucionar(evaluador: Evaluador, rng: np.random.Generator, poblacion: int = 150, generaciones: int = 25,
                 elite_pct: float = 10, prob_cruce: float = 0.7, prob_mutacion: float = 0.4,
-                max_filtros: int = 2, min_operaciones: int = 140, semillas: Optional[list] = None) -> dict:
+                max_filtros: int = 2, min_operaciones: int = 140, semillas: Optional[list] = None,
+                objetivo_anual: float = OPERACIONES_POR_ANIO_OBJETIVO) -> dict:
     """Devuelve el archivo de TODAS las estrategias probadas: id -> {estrategia, fitness, metricas}."""
     archivo = {}
 
@@ -71,7 +81,8 @@ def evolucionar(evaluador: Evaluador, rng: np.random.Generator, poblacion: int =
         if clave not in archivo:
             try:
                 m = evaluador.correr(est).metricas
-                archivo[clave] = {"estrategia": est, "fitness": fitness(m, est, min_operaciones), "metricas": m}
+                archivo[clave] = {"estrategia": est, "fitness": fitness(m, est, min_operaciones, objetivo_anual),
+                                  "metricas": m}
             except Exception as e:  # noqa: BLE001 - una estrategia rota no frena la fábrica
                 log.debug("Estrategia descartada por error: %s", e)
                 archivo[clave] = {"estrategia": est, "fitness": -3.0, "metricas": {"operaciones": 0}}
