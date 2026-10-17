@@ -48,7 +48,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 ## Telegram
 
 - Bot: "Sistema de ganancias".
-- Comandos: /estado /hoy /bots /fabrica /ciclo (correr la fábrica ahora) /salud (chequeo automático: datos, ciclos, disco, bots) /diagnostico (¿hubo señales sin operar?) /pausar /reanudar /cerrar_todo /informe /radar /ayuda.
+- Comandos: /estado /hoy /bots /fabrica /ciclo (correr la fábrica ahora) /salud (chequeo automático: datos, ciclos, disco, bots) /diagnostico (¿hubo señales sin operar?) /graduacion (¿cuánto falta para plata real?) /pausar /reanudar /cerrar_todo /informe /radar /ayuda.
 - Resumen nocturno a las 22 h (hora de Montevideo). Ciclo semanal de la fábrica: domingo 3:00 UTC.
 
 ## Dónde corre
@@ -70,7 +70,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 117 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 119 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 

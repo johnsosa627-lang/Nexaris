@@ -197,7 +197,7 @@ class Servicio:
         nuevos = self.liga.sincronizar_banco(banco(self.cfg))
         self.liga.completar_titulares()
         self.enviar(self.resumen_fabrica() + f"\n\nSe sumaron {len(nuevos)} suplente(s) nuevos a la liga.")
-        self.enviar(self.liga.texto_semana())
+        self.enviar(self.liga.texto_semana() + "\n\n" + self.liga.texto_preparacion())
 
     def _ciclo_en_subproceso(self):
         carpeta_log = self.liga.carpeta
@@ -251,7 +251,7 @@ class Servicio:
         tg.registrar("/hoy", lambda a: L.texto_hoy())
         tg.registrar("/bots", lambda a: L.texto_bots())
         tg.registrar("/fabrica", lambda a: self.resumen_fabrica())
-        tg.registrar("/informe", lambda a: L.texto_semana() + "\n\n" + self.resumen_fabrica())
+        tg.registrar("/informe", lambda a: L.texto_semana() + "\n\n" + self.resumen_fabrica() + "\n\n" + L.texto_preparacion())
         tg.registrar("/pausar", self.cmd_pausar)
         tg.registrar("/reanudar", self.cmd_reanudar)
         tg.registrar("/cerrar_todo", self.cmd_cerrar_todo)
@@ -259,6 +259,7 @@ class Servicio:
         tg.registrar("/ciclo", self.cmd_ciclo)
         tg.registrar("/salud", lambda a: self.chequeo_salud())
         tg.registrar("/diagnostico", self.cmd_diagnostico)
+        tg.registrar("/graduacion", lambda a: self.liga.texto_preparacion())
         tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
@@ -327,6 +328,7 @@ AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/h
          "/ciclo — correr la fábrica ahora (inventar y examinar estrategias)\n"
          "/salud — chequeo: ¿datos completos? ¿la fábrica trabaja? ¿hay disco?\n"
          "/diagnostico — ¿hubo señales que no se operaron? (revisa cada bot)\n"
+         "/graduacion — ¿cuánto falta para poder usar plata real?\n"
          "/pausar — no abrir operaciones nuevas\n/reanudar — seguir\n/cerrar_todo — cerrar todo y pausar")
 
 

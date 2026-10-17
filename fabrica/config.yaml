@@ -121,6 +121,13 @@ liga:
   # Cada cuántos segundos vigila los stops por software
   intervalo_vigilancia: 30
 
+# Examen de graduación para pasar a plata real (solo informa: el sistema NUNCA cambia de modo solo)
+preparacion_real:
+  min_semanas_practica: 4        # semanas operando en simulado
+  min_operaciones_bot: 30        # operaciones en vivo de un bot para juzgarlo
+  min_bots_listos: 1             # bots estrictos (no 🧪) que ganan en vivo como en sus pruebas
+  min_semanas_testnet: 2         # semanas en la cuenta de práctica de Binance (Demo Trading)
+
 servicio:
   zona_horaria: America/Montevideo
   # Chat de Telegram que recibe los avisos (se puede cambiar con la variable TELEGRAM_CHAT_ID)
