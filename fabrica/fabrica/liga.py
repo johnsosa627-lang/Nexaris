@@ -66,7 +66,9 @@ class Liga:
         # desde cuándo practica este sistema (estados viejos: el bot o evento más antiguo que haya)
         fechas = [b.get("desde") for b in self.e["bots"].values() if b.get("desde")] + \
                  [ev.get("fecha") for ev in self.e.get("eventos", []) if ev.get("fecha")]
-        self.e.setdefault("creado", min(fechas) if fechas else ahora_iso)
+        if self.e.get("creado"):
+            fechas.append(self.e["creado"])
+        self.e["creado"] = min(fechas, key=lambda f: datetime.fromisoformat(f).timestamp()) if fechas else ahora_iso
         if modo == "testnet":
             self.e.setdefault("testnet_desde", ahora_iso)
 
