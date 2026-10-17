@@ -62,6 +62,10 @@ class Liga:
             with open(self.ruta, encoding="utf-8") as f:
                 guardado = json.load(f)
             self.e.update(guardado)
+        ahora_iso = self.ahora().isoformat(timespec="seconds")
+        self.e.setdefault("creado", ahora_iso)  # desde cuándo practica este sistema
+        if modo == "testnet":
+            self.e.setdefault("testnet_desde", ahora_iso)
 
     # ------------------------------------------------------------------ utilidades
     def guardar(self):
@@ -557,6 +561,54 @@ class Liga:
         else:
             partes.append("Sin cambios en el equipo. Todo en orden." if not self.puede_operar() else f"Ojo: {self.puede_operar()}.")
         return "\n".join(partes)
+
+    def bots_listos(self) -> list:
+        """Bots estrictos (no 🧪) con suficientes operaciones en vivo que ganan y se parecen a sus pruebas."""
+        P = self.cfg.get("preparacion_real", {})
+        listos = []
+        for b in self.bots("titular") + self.bots("suplente"):
+            rs = [t["r"] for t in b["trades"]]
+            if b.get("nivel") == "exploracion" or len(rs) < P.get("min_operaciones_bot", 30):
+                continue
+            z = C.z_contra_backtest([t["retorno"] for t in b["trades"]], self.retornos_bt(b))
+            if sum(rs) / len(rs) > 0 and z >= -1.0:
+                listos.append(b)
+        return listos
+
+    def texto_preparacion(self) -> str:
+        """Examen de graduación para la plata real: qué se cumple y qué falta. Solo informa, no cambia nada."""
+        P = self.cfg.get("preparacion_real", {})
+        ahora = self.reloj()
+        semanas = (ahora - datetime.fromisoformat(self.e["creado"]).timestamp()) / (7 * 86400)
+        c = self.e["cuenta"]
+        listos = self.bots_listos()
+        estrictos = [b for b in self.bots("titular") + self.bots("suplente") if b.get("nivel") != "exploracion"]
+        mas_ops = max((len(b["trades"]) for b in estrictos), default=0)
+        t_desde = self.e.get("testnet_desde")
+        sem_testnet = (ahora - datetime.fromisoformat(t_desde).timestamp()) / (7 * 86400) if t_desde else 0.0
+        cond = [
+            (semanas >= P.get("min_semanas_practica", 4),
+             f"Práctica en simulado: {semanas:.1f} de {P.get('min_semanas_practica', 4)} semanas"),
+            (len(listos) >= P.get("min_bots_listos", 1),
+             f"Bots probados en vivo: {len(listos)} de {P.get('min_bots_listos', 1)} (estrictos, sin 🧪, con "
+             f"{P.get('min_operaciones_bot', 30)}+ operaciones, ganando como en sus pruebas). Hay {len(estrictos)} "
+             f"estricto(s); el que más operó lleva {mas_ops}"),
+            (c["equity"] >= float(self.R["capital_inicial"]),
+             f"Cuenta de práctica sin pérdida: {c['equity']:.2f} de {float(self.R['capital_inicial']):.2f} USDT"),
+            (not self.e["apagado"], "Sin freno total activado" if not self.e["apagado"] else
+             f"Freno total activado: {self.e['motivo_apagado']}"),
+            (sem_testnet >= P.get("min_semanas_testnet", 2),
+             f"Cuenta de práctica de Binance (Demo Trading): {sem_testnet:.1f} de {P.get('min_semanas_testnet', 2)} semanas"
+             + ("" if t_desde else " (falta verificar la identidad en Binance y crear las claves de práctica)")),
+        ]
+        lineas = ["🎓 EXAMEN DE GRADUACIÓN (para plata real)"] + [("✅ " if ok else "⏳ ") + t for ok, t in cond]
+        faltan = sum(1 for ok, _ in cond if not ok)
+        if faltan:
+            lineas.append(f"\nFaltan {faltan} de {len(cond)}. Mientras tanto se sigue practicando solo, sin riesgo.")
+        else:
+            lineas.append("\n🎉 Se cumple todo. Recién ahora tiene sentido hablar de plata real (con poco, y lo decidís vos: "
+                          "el sistema nunca cambia de modo solo).")
+        return "\n".join(lineas)
 
     def texto_semana(self) -> str:
         desde = datetime.fromtimestamp(self.reloj() - 7 * 86400, tz=timezone.utc).isoformat(timespec="seconds")
