@@ -34,7 +34,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
   7. anti-suerte (precios mezclados) + Deflated Sharpe.
 - **Examen final:** se rinde **una sola vez** por estrategia. Las aprobadas van al banco.
 - **Liga:** de 3 a 5 **titulares** (los que operan), con correlación menor a 0,5, y **suplentes** que operan en papel. Ascenso con prueba t ≥ 2 y al menos 30 operaciones. **Jubilación automática** si la caída real supera la del Monte Carlo o si rinde mucho peor que en las pruebas.
-- **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y nunca operan con plata real.
+- **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y practican en simulado. Solo pueden llegar a plata real si se "gradúan" operando en vivo (50+ operaciones y una prueba estadística t ≥ 2 de que su ganancia no es casualidad), y siempre con el permiso doble.
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
 
 ## Reglas de riesgo (no se tocan)
