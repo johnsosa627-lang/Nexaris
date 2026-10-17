@@ -50,6 +50,8 @@ generador:
   max_filtros: 2
   # Parte de los datos de trabajo usada para crear; el resto es "fuera de muestra"
   fraccion_creacion: 0.7
+  # Preferir estrategias que operen seguido (operaciones por año; 0 = sin preferencia). No cambia los exámenes.
+  operaciones_por_anio_objetivo: 150
   # Cuántas de las mejores pasan al colador
   candidatas: 30
   # Semilla para poder repetir exactamente un ciclo (vacío = al azar)
