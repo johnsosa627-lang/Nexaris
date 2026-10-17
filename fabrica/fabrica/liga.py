@@ -31,6 +31,16 @@ COLUMNAS_CSV = ["fecha", "bot", "rol", "modo", "simbolo", "tf", "lado", "entrada
                 "r", "pnl_usdt", "motivo"]
 
 
+def _t_media(rs) -> float:
+    """Qué tan claramente el promedio de `rs` es mayor que cero (t de una muestra)."""
+    import math
+    import numpy as np
+    a = np.asarray(rs, float)
+    if len(a) < 2 or a.std(ddof=1) == 0:
+        return 0.0
+    return float(a.mean() / (a.std(ddof=1) / math.sqrt(len(a))))
+
+
 def _moneda(simbolo):
     return simbolo.split("/")[0]
 
@@ -138,8 +148,8 @@ class Liga:
     def elegible(self, bot, excluir: Optional[str] = None) -> bool:
         if bot["rol"] != "suplente" or bot["posicion"] is not None:
             return False
-        if bot.get("nivel") == "exploracion" and self.modo == "real":
-            return False  # las de filtros flojos NUNCA operan con plata real
+        if bot.get("nivel") == "exploracion" and self.modo == "real" and not self.graduado(bot):
+            return False  # las de filtros flojos solo van a plata real si se graduaron operando en vivo
         if bot.get("no_operable") or not self.operable(bot):
             return False  # con este capital no llega al mínimo de Binance: no ocupa un lugar de titular
         titulares = [t for t in self.bots("titular") if t["id"] != excluir]
@@ -567,18 +577,23 @@ class Liga:
             partes.append("Sin cambios en el equipo. Todo en orden." if not self.puede_operar() else f"Ojo: {self.puede_operar()}.")
         return "\n".join(partes)
 
-    def bots_listos(self) -> list:
-        """Bots estrictos (no 🧪) con suficientes operaciones en vivo que ganan y se parecen a sus pruebas."""
+    def graduado(self, bot) -> bool:
+        """¿Demostró en vivo que gana? Estrictas: 30+ operaciones ganando como en sus pruebas.
+        🧪: más exigente, 50+ operaciones y una prueba estadística de que su ganancia no es casualidad."""
         P = self.cfg.get("preparacion_real", {})
-        listos = []
-        for b in self.bots("titular") + self.bots("suplente"):
-            rs = [t["r"] for t in b["trades"]]
-            if b.get("nivel") == "exploracion" or len(rs) < P.get("min_operaciones_bot", 30):
-                continue
-            z = C.z_contra_backtest([t["retorno"] for t in b["trades"]], self.retornos_bt(b))
-            if sum(rs) / len(rs) > 0 and z >= -1.0:
-                listos.append(b)
-        return listos
+        rs = [t["r"] for t in bot["trades"]]
+        if bot.get("nivel") == "exploracion":
+            if len(rs) < P.get("min_operaciones_exploracion", 50):
+                return False
+            return _t_media(rs) >= P.get("t_minimo_exploracion", 2.0)
+        if len(rs) < P.get("min_operaciones_bot", 30):
+            return False
+        z = C.z_contra_backtest([t["retorno"] for t in bot["trades"]], self.retornos_bt(bot))
+        return sum(rs) / len(rs) > 0 and z >= -1.0
+
+    def bots_listos(self) -> list:
+        """Bots que ya se graduaron operando en vivo (estrictos o 🧪)."""
+        return [b for b in self.bots("titular") + self.bots("suplente") if self.graduado(b)]
 
     def texto_preparacion(self) -> str:
         """Examen de graduación para la plata real: qué se cumple y qué falta. Solo informa, no cambia nada."""
@@ -587,17 +602,19 @@ class Liga:
         semanas = (ahora - datetime.fromisoformat(self.e["creado"]).timestamp()) / (7 * 86400)
         c = self.e["cuenta"]
         listos = self.bots_listos()
-        estrictos = [b for b in self.bots("titular") + self.bots("suplente") if b.get("nivel") != "exploracion"]
-        mas_ops = max((len(b["trades"]) for b in estrictos), default=0)
+        activos = self.bots("titular") + self.bots("suplente")
+        mejor = max(activos, key=lambda b: len(b["trades"]), default=None)
+        mas_ops = len(mejor["trades"]) if mejor else 0
         t_desde = self.e.get("testnet_desde")
         sem_testnet = (ahora - datetime.fromisoformat(t_desde).timestamp()) / (7 * 86400) if t_desde else 0.0
         cond = [
             (semanas >= P.get("min_semanas_practica", 4),
              f"Práctica en simulado: {semanas:.1f} de {P.get('min_semanas_practica', 4)} semanas"),
             (len(listos) >= P.get("min_bots_listos", 1),
-             f"Bots probados en vivo: {len(listos)} de {P.get('min_bots_listos', 1)} (estrictos, sin 🧪, con "
-             f"{P.get('min_operaciones_bot', 30)}+ operaciones, ganando como en sus pruebas). Hay {len(estrictos)} "
-             f"estricto(s); el que más operó lleva {mas_ops}"),
+             f"Bots que se graduaron operando en vivo: {len(listos)} de {P.get('min_bots_listos', 1)} "
+             f"(estrictos: {P.get('min_operaciones_bot', 30)}+ operaciones ganando; 🧪: "
+             f"{P.get('min_operaciones_exploracion', 50)}+ operaciones y ganancia comprobada). "
+             f"El que más operó lleva {mas_ops}"),
             (c["equity"] >= float(self.R["capital_inicial"]),
              f"Cuenta de práctica sin pérdida: {c['equity']:.2f} de {float(self.R['capital_inicial']):.2f} USDT"),
             (not self.e["apagado"], "Sin freno total activado" if not self.e["apagado"] else

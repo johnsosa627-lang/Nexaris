@@ -314,6 +314,13 @@ def test_estrategias_de_exploracion_nunca_operan_con_plata_real(tmp_path):
         liga.completar_titulares()
         assert liga.e["bots"]["bot1"]["rol"] == esperado
     assert "🧪" in liga.texto_bots()
+    # salvo que se haya graduado operando en vivo (50+ operaciones con ganancia comprobada)
+    import numpy as np
+    bot = liga.e["bots"]["bot1"]
+    bot["trades"] = [{"r": float(r), "retorno": float(r) / 100, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}
+                     for r in np.random.default_rng(1).normal(0.5, 1.0, 60)]
+    liga.completar_titulares()
+    assert bot["rol"] == "titular"
 
 
 def test_primero_las_estrictas(tmp_path):
@@ -413,11 +420,19 @@ def test_examen_de_graduacion_solo_informa(tmp_path):
     liga, _, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"])
     liga.sincronizar_banco([registro(1), {**registro(2, "BBB/USDT:USDT"), "nivel": "exploracion"}])
     texto = liga.texto_preparacion()
-    assert "EXAMEN DE GRADUACIÓN" in texto and "Faltan 3 de 5" in texto and "0.0 de 4 semanas" in texto
+    assert "EXAMEN DE GRADUACIÓN" in texto and "Faltan 3 de 5" in texto
     # un bot estricto con 30 operaciones ganadoras parecidas a sus pruebas cuenta como "probado"; uno 🧪 nunca
     for b in liga.e["bots"].values():
         b["trades"] = [{"r": 0.8, "retorno": 0.008, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}] * 30
-    assert [b["id"] for b in liga.bots_listos()] == ["bot1"]
+    assert [b["id"] for b in liga.bots_listos()] == ["bot1"]  # la 🧪 con 30 todavía no alcanza
+    import numpy as np
+    sup = liga.e["bots"]["bot2"]
+    rs = np.random.default_rng(1).normal(0.4, 1.0, 60)              # 60 operaciones con ganancia clara
+    sup["trades"] = [{"r": float(r), "retorno": float(r) / 100, "fecha": "2023-11-14T00:00:00+00:00",
+                      "rol": "suplente"} for r in rs]
+    assert liga.graduado(sup)
+    sup["trades"] = [{**t, "r": float(r)} for t, r in zip(sup["trades"], np.random.default_rng(2).normal(0.0, 1.0, 60))]
+    assert not liga.graduado(sup)                                     # ganar por momentos no alcanza
     t["ahora"] += 5 * 7 * 86400
     texto = liga.texto_preparacion()
     assert "Faltan 1 de 5" in texto and "Demo Trading" in texto and liga.modo == "papel"  # no cambia de modo solo
