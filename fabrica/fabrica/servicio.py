@@ -258,9 +258,24 @@ class Servicio:
         tg.registrar("/confirmar_real", self.cmd_confirmar_real)
         tg.registrar("/ciclo", self.cmd_ciclo)
         tg.registrar("/salud", lambda a: self.chequeo_salud())
+        tg.registrar("/diagnostico", self.cmd_diagnostico)
         tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
+
+    def cmd_diagnostico(self, a=""):
+        """Recalcula las señales de cada bot desde que entró en vivo (en segundo plano: tarda un poco)."""
+        from . import diagnostico
+
+        def tarea():
+            try:
+                bots = [dict(b) for b in self.liga.e["bots"].values()]
+                self.enviar(diagnostico.texto(diagnostico.diagnosticar(self.cfg, bots, self.cfg["liga"]["velas_historia"])))
+            except Exception as e:  # noqa: BLE001
+                log.exception("Falló el diagnóstico")
+                self.enviar(f"🔬 No pude hacer el diagnóstico: {e}")
+        threading.Thread(target=tarea, name="diagnostico", daemon=True).start()
+        return "🔬 Revisando las señales de cada bot. Tarda unos minutos; te mando el resultado."
 
     def cmd_ciclo(self, a=""):
         """Correr la fábrica ahora (no toca la plata: solo inventa y examina estrategias)."""
@@ -311,6 +326,7 @@ AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/h
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/ciclo — correr la fábrica ahora (inventar y examinar estrategias)\n"
          "/salud — chequeo: ¿datos completos? ¿la fábrica trabaja? ¿hay disco?\n"
+         "/diagnostico — ¿hubo señales que no se operaron? (revisa cada bot)\n"
          "/pausar — no abrir operaciones nuevas\n/reanudar — seguir\n/cerrar_todo — cerrar todo y pausar")
 
 
