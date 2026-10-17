@@ -421,3 +421,15 @@ def test_examen_de_graduacion_solo_informa(tmp_path):
     t["ahora"] += 5 * 7 * 86400
     texto = liga.texto_preparacion()
     assert "Faltan 1 de 5" in texto and "Demo Trading" in texto and liga.modo == "papel"  # no cambia de modo solo
+
+
+def test_la_practica_cuenta_desde_lo_mas_antiguo(tmp_path):
+    t = {"ahora": 1_700_000_000.0}
+    liga, _, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"])
+    liga.sincronizar_banco([registro(1)])
+    liga.e["creado"] = liga.ahora().isoformat(timespec="seconds")
+    liga.e["bots"]["bot1"]["desde"] = "2023-11-01T00:00:00+00:00"   # el bot ya practicaba desde antes
+    liga.guardar()
+    t["ahora"] += 3600
+    otra, _, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"])
+    assert otra.e["creado"] == "2023-11-01T00:00:00+00:00"
