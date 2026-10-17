@@ -102,7 +102,7 @@ examen:
 
 liga:
   # Bots operando a la vez (titulares) y en práctica (suplentes)
-  max_titulares: 3
+  max_titulares: 5   # uno por moneda como máximo; el riesgo abierto total sigue limitado al 3%
   max_suplentes: 12
   # Los titulares no pueden parecerse entre sí más que esto (correlación de resultados diarios)
   max_correlacion: 0.5
