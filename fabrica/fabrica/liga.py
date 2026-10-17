@@ -63,7 +63,10 @@ class Liga:
                 guardado = json.load(f)
             self.e.update(guardado)
         ahora_iso = self.ahora().isoformat(timespec="seconds")
-        self.e.setdefault("creado", ahora_iso)  # desde cuándo practica este sistema
+        # desde cuándo practica este sistema (estados viejos: el bot o evento más antiguo que haya)
+        fechas = [b.get("desde") for b in self.e["bots"].values() if b.get("desde")] + \
+                 [ev.get("fecha") for ev in self.e.get("eventos", []) if ev.get("fecha")]
+        self.e.setdefault("creado", min(fechas) if fechas else ahora_iso)
         if modo == "testnet":
             self.e.setdefault("testnet_desde", ahora_iso)
 
