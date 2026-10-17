@@ -341,19 +341,28 @@ class Liga:
             return "take-profit"
         return "stop móvil" if pos.get("stop_movido") else "stop-loss"
 
+    def _senal_perdida(self, bot, lado, motivo):
+        """Anota una señal que el bot no operó y por qué (la muestra /diagnostico)."""
+        perdidas = bot.setdefault("senales_perdidas", [])
+        perdidas.append({"ts": int(self.reloj() * 1000), "lado": "compra" if lado == 1 else "venta", "motivo": motivo})
+        del perdidas[:-30]
+
     def _abrir(self, bot, lado, atr, vela, dist_rango=None):
         if bot["rol"] == "titular":
             bloqueo = self.puede_operar()
             if bloqueo:
+                self._senal_perdida(bot, lado, bloqueo)
                 return
             precio = self.ejecutor.precio(bot["simbolo"]) if self.con_dinero(bot) else vela["close"]
             niv = niveles(bot["estrategia"]["salidas"], lado, precio, atr, dist_rango)
             if niv is None:
+                self._senal_perdida(bot, lado, "no se pudo calcular el stop")
                 return
             capital = self.capital()
             riesgo = capital * self.riesgo_frac
             abierto = sum(b["posicion"]["riesgo_usdt"] for b in self.bots("titular") if b["posicion"])
             if not C.riesgo_abierto_permitido(abierto, riesgo, capital, self.R["riesgo_total_max_pct"]):
+                self._senal_perdida(bot, lado, f"el riesgo abierto total pasaría el {self.R['riesgo_total_max_pct']}%")
                 self._aviso_unico(f"riesgo-{bot['id']}", f"⏸ {bot['id']} tenía señal pero el riesgo abierto total llegaría "
                                                          f"a más de {self.R['riesgo_total_max_pct']}%: no entra.")
                 return
@@ -361,6 +370,7 @@ class Liga:
             cantidad, motivo = C.tamano(riesgo, niv["dist"], precio, capital, self.R["apalancamiento_max"],
                                         lambda q: self.mercado.ajustar(bot["simbolo"], q), min_q, min_n)
             if not cantidad:
+                self._senal_perdida(bot, lado, f"no llega al mínimo de Binance ({motivo})")
                 bot["omitidas"] = bot.get("omitidas", 0) + 1
                 bot["omitidas_seguidas"] = bot.get("omitidas_seguidas", 0) + 1
                 self._aviso_unico(f"min-{bot['id']}", f"🚫 {bot['id']} ({_moneda(bot['simbolo'])}) tuvo señal pero no "
@@ -377,6 +387,7 @@ class Liga:
             entrada = vela["close"] * (1 + self.slippage * lado)
             niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr, dist_rango)
             if niv is None:
+                self._senal_perdida(bot, lado, "no se pudo calcular el stop")
                 return
             cantidad, riesgo_real = None, float(self.R["capital_inicial"]) * self.riesgo_frac
         bot["omitidas_seguidas"] = 0

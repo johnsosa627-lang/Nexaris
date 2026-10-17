@@ -238,6 +238,7 @@ def test_pausa_frena_titulares_pero_no_suplentes(tmp_path):
     liga._abrir(tit, 1, 0.5, v.iloc[-1].to_dict())
     liga._abrir(sup, 1, 0.5, v.iloc[-1].to_dict())
     assert tit["posicion"] is None and sup["posicion"] is not None
+    assert tit["senales_perdidas"][-1]["motivo"] == "pausado" and "senales_perdidas" not in sup  # queda anotado por qué
 
 
 # ------------------------------------------------------------------ titular en Binance (simulado)

@@ -20,7 +20,10 @@ def test_senales_sin_operar_y_coincidencia_con_vivo(tmp_path):
     assert len(r) == 1 and r[0]["velas_en_vivo"] == 300
     assert r[0]["senales_vivo"] > 3 and r[0]["senales_vivo"] == r[0]["senales_historia"]  # en vivo calcula igual
     t = diagnostico.texto(r)
-    assert "⚠️ b1" in t and "hay algo que revisar" in t
+    assert "⚠️ b1" in t and "hay algo que revisar" in t and "señales: " in t and "UTC" in t
+    con_motivo = diagnostico.texto(diagnostico.diagnosticar(cfg, [{**bot, "senales_perdidas": [
+        {"ts": T0 + 2900 * H, "lado": "compra", "motivo": "radar externo: dato de EE.UU."}]}]))
+    assert "no operó el" in con_motivo and "radar externo" in con_motivo
     operando = diagnostico.texto(diagnostico.diagnosticar(cfg, [{**bot, "trades": [{"r": 1}]}]))
     assert "Ninguna señal quedó sin operar" in operando
     sin_datos = diagnostico.diagnosticar(cfg, [{**bot, "simbolo": "ZZZ/USDT:USDT"}])

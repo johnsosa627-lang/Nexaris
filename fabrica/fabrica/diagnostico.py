@@ -36,16 +36,27 @@ def diagnosticar_bot(cfg: dict, bot: dict, historia: int = 1000) -> dict:
     n_historia = int(((largo | corto) & en_vivo).sum())
     # como en vivo: vela por vela, solo con las últimas `historia` velas
     idx = [i for i in range(len(velas)) if en_vivo[i]][-MAX_VELAS_VIVO:]
-    n_vivo = 0
+    n_vivo, momentos = 0, []
     for i in idx:
         ini = max(0, i + 1 - historia)
         ventana = velas.iloc[ini:i + 1].reset_index(drop=True)
         ext = {k: v[ini:i + 1] for k, v in externos.items()} if externos else None
         lado, _ = senal_ultima_vela(bot["estrategia"], ventana, ext)
-        n_vivo += 1 if lado else 0
+        if lado:
+            n_vivo += 1
+            momentos.append(int(velas["ts"].iloc[i]) + _paso(velas))  # la señal se ve al cerrar la vela
     return {"id": bot["id"], "mercado": f"{bot['simbolo'].split('/')[0]} {bot['tf']}", "velas_en_vivo": int(en_vivo.sum()),
             "senales_historia": n_historia, "senales_vivo": n_vivo, "revisadas_vivo": len(idx),
-            "operaciones": len(bot.get("trades") or []) + (1 if bot.get("posicion") else 0)}
+            "operaciones": len(bot.get("trades") or []) + (1 if bot.get("posicion") else 0),
+            "momentos": momentos[-3:], "perdidas": (bot.get("senales_perdidas") or [])[-3:]}
+
+
+def _paso(velas) -> int:
+    return int(velas["ts"].diff().median()) if len(velas) > 1 else 0
+
+
+def _hora(ms: int) -> str:
+    return pd.Timestamp(ms, unit="ms", tz="UTC").strftime("%d/%m %H:%M UTC")
 
 
 def diagnosticar(cfg: dict, bots: list, historia: int = 1000) -> list:
@@ -64,8 +75,15 @@ def texto(resultados: list) -> str:
             marca, problemas = "⚠️", problemas + 1
         lineas.append(f"{marca} {r['id']} ({r['mercado']}): {r['senales_vivo']} señales en vivo, "
                       f"{r['senales_historia']} con toda la historia, {r['operaciones']} operaciones")
+        if marca == "⚠️":
+            if r.get("momentos"):
+                lineas.append("   señales: " + ", ".join(_hora(m) for m in r["momentos"]))
+            for p in r.get("perdidas") or []:
+                lineas.append(f"   no operó el {_hora(p['ts'])}: {p['motivo']}")
     if problemas:
-        lineas.append(f"\n⚠️ {problemas} bot(s) tuvieron señales y no operaron: hay algo que revisar.")
+        lineas.append(f"\n⚠️ {problemas} bot(s) tuvieron señales y no operaron. Si dice el motivo (por ejemplo, una pausa "
+                      "del radar), está bien. Si no dice nada, hay algo que revisar. Los titulares respetan las pausas del "
+                      "radar y los frenos; los suplentes no.")
     else:
         lineas.append("\nNinguna señal quedó sin operar: si no hubo operaciones es porque no hubo señales.")
     return "\n".join(lineas)
