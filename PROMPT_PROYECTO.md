@@ -17,7 +17,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 ## Cómo funciona la fábrica (`fabrica/`)
 
-- **Datos:** Binance Futuros por ccxt. Monedas BTC, ETH, SOL, BNB y XRP. Temporalidades 15m, 1h y 4h. Historia desde 2021-01-01, más el funding. Los **últimos 6 meses se guardan aparte como examen final** y no se usan para crear estrategias.
+- **Datos:** Binance Futuros por ccxt. Monedas BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK y LTC. Temporalidades 15m, 1h y 4h. Historia desde 2021-01-01, más el funding. Los **últimos 6 meses se guardan aparte como examen final** y no se usan para crear estrategias.
 - **Datos de afuera del gráfico** (se usan como piezas que también se examinan): funding, tendencia de Bitcoin como líder, índice de Miedo y Codicia.
 - **Generador:** inventa estrategias al azar y las mejora con un algoritmo genético (mezclar, mutar). Cada estrategia tiene 1 disparador, hasta 2 filtros y reglas de salida (stop, toma de ganancia, stop móvil, salida por tiempo).
   - Disparadores: cruce de medias, precio cruza media, MACD, ruptura Donchian, rebote Bollinger, cruce de RSI, retroceso RSI-2/3, ruptura tras compresión de Bollinger, cambio de Supertrend, ruptura de la nube de Ichimoku y ruptura de consolidación (rango angosto que se rompe) y ruptura de apertura de sesión (ORB de Nueva York 9:30, Londres 8:00 y rango de Asia).
