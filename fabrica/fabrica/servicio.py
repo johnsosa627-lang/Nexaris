@@ -231,13 +231,16 @@ class Servicio:
         with open(os.path.join(carpeta, "embudo.json"), encoding="utf-8") as f:
             e = json.load(f)["embudo"]
         examen = os.path.join(carpeta, "informe.txt")
-        aprobaron = ""
+        aprobaron = revision = ""
         if os.path.exists(examen):
             with open(examen, encoding="utf-8") as f:
-                aprobaron = next((l.strip() for l in f if l.strip().startswith("Examen final")), "")
+                renglones = [l.strip() for l in f]
+            aprobaron = next((l for l in renglones if l.startswith("Examen final")), "")
+            revision = next((l for l in renglones if l.startswith("Revisión con datos nuevos")), "")
         lineas = [f"🏭 Último ciclo de la fábrica ({os.path.basename(carpeta)}):",
                   f"Inventó {e['inventadas']} estrategias; {e['candidatas']} pasaron al colador.",
                   f"Pasaron cada filtro: " + " → ".join(str(e[k]) for k in sorted(e) if k[0].isdigit()), aprobaron,
+                  revision,
                   f"Banco total: {len(banco(self.cfg))} estrategias listas.",
                   "Ciclo en curso ahora." if self.ciclo_en_curso else
                   f"Próximo ciclo: el {['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][self.S['dia_ciclo_semanal']]} "

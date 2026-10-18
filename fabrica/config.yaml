@@ -103,6 +103,12 @@ examen:
   min_profit_factor: 1.1
   # Además: tiene que ganar plata y no caer más que la peor caída prevista por Monte Carlo
 
+seguimiento:
+  # Revisión semanal con datos nuevos (las semanas posteriores al examen de cada estrategia del banco).
+  # Si con al menos estas operaciones pierde plata, queda "vencida" y no entra a la liga.
+  min_operaciones: 10
+  min_profit_factor: 1.0
+
 liga:
   # Bots operando a la vez (titulares) y en práctica (suplentes)
   max_titulares: 5   # uno por moneda como máximo; el riesgo abierto total sigue limitado al 3%

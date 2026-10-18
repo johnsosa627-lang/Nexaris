@@ -85,6 +85,14 @@ def informe_ciclo(cfg: dict, carpeta_ciclo: str) -> str:
     if reprobadas:
         lineas += ["", "Reprobaron el examen final:"]
         lineas += [f"  ❌ {a['id']} ({_moneda(a['simbolo'])} {a['tf']}): {'; '.join(a['examen']['motivos'])}" for a in reprobadas]
+    ruta_seg = os.path.join(carpeta_ciclo, "seguimiento.json")
+    if os.path.exists(ruta_seg):
+        with open(ruta_seg, encoding="utf-8") as f:
+            seg = json.load(f)
+        vencidas = seg.get("vencidas", [])
+        lineas += ["", f"Revisión con datos nuevos: {seg.get('revisadas', 0)} del banco probadas en las semanas "
+                       f"posteriores a su examen; {len(vencidas)} dejaron de funcionar y ya no entran a la liga."]
+        lineas += [f"  ⌛ {v['id']} ({_moneda(v['simbolo'])} {v['tf']}): {v['motivo']}" for v in vencidas]
     total_banco = banco(cfg)
     lineas += ["", f"📦 Banco total: {len(total_banco)} estrategia(s) que aprobaron todo, listas para la liga."]
     texto = "\n".join(lineas)

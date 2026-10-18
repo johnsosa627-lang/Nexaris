@@ -33,6 +33,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
   6. entrada tardía;
   7. anti-suerte (precios mezclados) + Deflated Sharpe.
 - **Examen final:** se rinde **una sola vez** por estrategia. Las aprobadas van al banco.
+- **Revisión con datos nuevos (cada ciclo):** cada estrategia del banco se prueba en las semanas posteriores a su examen. Si con 10+ operaciones pierde plata, queda "vencida" y no entra a la liga. Las que van mejor entran primero.
 - **Liga:** de 3 a 5 **titulares** (los que operan), con correlación menor a 0,5, y **suplentes** que operan en papel. Ascenso con prueba t ≥ 2 y al menos 30 operaciones. **Jubilación automática** si la caída real supera la del Monte Carlo o si rinde mucho peor que en las pruebas.
 - **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y practican en simulado. Solo pueden llegar a plata real si se "gradúan" operando en vivo (50+ operaciones y una prueba estadística t ≥ 2 de que su ganancia no es casualidad), y siempre con el permiso doble.
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
@@ -70,7 +71,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 121 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 124 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 
