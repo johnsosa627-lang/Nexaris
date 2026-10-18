@@ -50,6 +50,18 @@ def ya_examinadas(cfg) -> dict:
     return _leer_json(ruta_registro(cfg), {})
 
 
+def _evaluador(cfg: dict, simbolo: str, tf: str):
+    carpeta = cfg["datos"]["carpeta"]
+    velas = cargar_velas(carpeta, simbolo, tf)
+    funding = cargar_funding(carpeta, simbolo)
+    fund = alinear_funding(velas["ts"].to_numpy(), funding, tf)
+    ext = externos_para(velas["ts"].to_numpy(), tf, funding,
+                        cargar_velas(carpeta, SIMBOLO_LIDER, tf), cargar_miedo_codicia(carpeta))
+    r = cfg["riesgo"]
+    ev = Evaluador(velas, fund, Costos.desde_config(cfg), r["riesgo_por_operacion_pct"], r["apalancamiento_max"], ext)
+    return velas, ev
+
+
 def examinar(cfg: dict, registro: dict) -> dict:
     """Corre el examen de UNA estrategia. Si ya se examinó antes, devuelve el resultado guardado sin recalcular."""
     examenes = ya_examinadas(cfg)
@@ -59,16 +71,9 @@ def examinar(cfg: dict, registro: dict) -> dict:
     e = dict(cfg["examen"])
     if registro.get("nivel") == "exploracion":
         e.update((cfg.get("exploracion") or {}).get("examen", {}))
-    carpeta = cfg["datos"]["carpeta"]
-    velas = cargar_velas(carpeta, registro["simbolo"], registro["tf"])
+    velas, ev = _evaluador(cfg, registro["simbolo"], registro["tf"])
     corte = int(registro["corte_examen_ms"])
     inicio = int(np.searchsorted(velas["ts"].to_numpy(), corte, side="left"))
-    funding = cargar_funding(carpeta, registro["simbolo"])
-    fund = alinear_funding(velas["ts"].to_numpy(), funding, registro["tf"])
-    ext = externos_para(velas["ts"].to_numpy(), registro["tf"], funding,
-                        cargar_velas(carpeta, SIMBOLO_LIDER, registro["tf"]), cargar_miedo_codicia(carpeta))
-    r = cfg["riesgo"]
-    ev = Evaluador(velas, fund, Costos.desde_config(cfg), r["riesgo_por_operacion_pct"], r["apalancamiento_max"], ext)
     # Las señales usan la historia previa para "calentar" los indicadores; las operaciones empiezan en el corte
     res = ev.correr(registro["estrategia"], desde=inicio)
     m = res.metricas
@@ -135,11 +140,62 @@ def examinar_ciclo(cfg: dict, carpeta_ciclo: str) -> list:
     return resultados
 
 
-def banco(cfg) -> list:
+def banco(cfg, todas: bool = False) -> list:
+    """Estrategias del banco listas para la liga. Las que van mejor con datos nuevos quedan primero."""
     carpeta = carpeta_banco(cfg)
     if not os.path.isdir(carpeta):
         return []
-    return [_leer_json(os.path.join(carpeta, n), None) for n in sorted(os.listdir(carpeta)) if n.endswith(".json")]
+    registros = [_leer_json(os.path.join(carpeta, n), None) for n in sorted(os.listdir(carpeta)) if n.endswith(".json")]
+    if todas:
+        return registros
+    activas = [r for r in registros if r.get("estado", "banco") == "banco"]
+    return sorted(activas, key=lambda r: -((r.get("seguimiento") or {}).get("retorno_pct") or 0.0))
+
+
+def revisar_banco(cfg: dict, carpeta_ciclo: str = None) -> dict:
+    """Revisión con datos nuevos: prueba cada estrategia del banco en las velas que llegaron DESPUÉS de su examen.
+
+    Todos los ciclos rinden examen en (casi) los mismos 6 meses, así que con el tiempo alguna puede aprobar
+    solo porque "le cae bien" ese período. Los datos posteriores a su examen nunca influyeron en elegirla:
+    si ahí pierde con suficientes operaciones, queda "vencida" y ya no entra a la liga.
+    Los bots que ya están en la liga se siguen juzgando por sus resultados en vivo, como siempre.
+    """
+    s = {"min_operaciones": 10, "min_profit_factor": 1.0, **(cfg.get("seguimiento") or {})}
+    resumen = {"revisadas": 0, "sin_datos_nuevos": 0, "vencidas": []}
+    evaluadores = {}
+    for reg in banco(cfg, todas=True):
+        if reg.get("estado", "banco") != "banco" or not (reg.get("examen") or {}).get("hasta_ms"):
+            continue
+        clave = (reg["simbolo"], reg["tf"])
+        try:
+            if clave not in evaluadores:
+                evaluadores[clave] = _evaluador(cfg, *clave)
+            velas, ev = evaluadores[clave]
+        except Exception:  # noqa: BLE001 - sin datos de esa moneda no se toca la estrategia
+            log.exception("No pude revisar %s con datos nuevos", reg["id"])
+            continue
+        inicio = int(np.searchsorted(velas["ts"].to_numpy(), int(reg["examen"]["hasta_ms"]), side="right"))
+        if inicio >= len(velas):
+            resumen["sin_datos_nuevos"] += 1
+            continue
+        m = ev.correr(reg["estrategia"], desde=inicio).metricas
+        reg["seguimiento"] = {
+            "fecha": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "desde_ms": int(velas["ts"].iloc[inicio]), "hasta_ms": int(velas["ts"].iloc[-1]),
+            "operaciones": int(m["operaciones"]), "retorno_pct": round(float(m["retorno_pct"]), 2),
+            "profit_factor": round(float(m["profit_factor"]), 2)}
+        resumen["revisadas"] += 1
+        if m["operaciones"] >= s["min_operaciones"] and m["profit_factor"] < s["min_profit_factor"]:
+            reg["estado"] = "vencida"
+            reg["motivo_vencida"] = (f"con datos nuevos perdió: {m['operaciones']} operaciones, "
+                                     f"profit factor {m['profit_factor']:.2f}, {m['retorno_pct']:+.1f}%")
+            resumen["vencidas"].append({"id": reg["id"], "simbolo": reg["simbolo"], "tf": reg["tf"],
+                                        "motivo": reg["motivo_vencida"]})
+            log.info("Banco: %s queda vencida (%s)", reg["id"], reg["motivo_vencida"])
+        _escribir_json(os.path.join(carpeta_banco(cfg), f"{reg['id']}.json"), reg)
+    if carpeta_ciclo:
+        _escribir_json(os.path.join(carpeta_ciclo, "seguimiento.json"), resumen)
+    return resumen
 
 
 def ultimo_ciclo(cfg) -> str:

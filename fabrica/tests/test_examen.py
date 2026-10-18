@@ -76,3 +76,49 @@ def test_tarjeta_en_lenguaje_simple(tmp_path):
     t = tarjeta(registro)
     assert "AAA, velas de 1 hora" in t and "Qué hace:" in t and "15 dólares" in t
     assert "9 veces seguidas" in t and "APROBÓ" in t
+
+
+def _al_banco(tmp_path, phi_nuevo, hasta_frac=0.8):
+    """Banco con una estrategia cuyo examen terminó en `hasta_frac`; después el mercado sigue con `phi_nuevo`."""
+    cfg = cargar_config()
+    cfg["datos"]["carpeta"] = str(tmp_path / "datos")
+    cfg["salida"]["carpeta"] = str(tmp_path / "res")
+    corte = int(N * hasta_frac)
+    v = serie_con_cambio(N, corte, 0.25, phi_nuevo, 4)
+    ruta = datos.ruta_velas(cfg["datos"]["carpeta"], "AAA/USDT:USDT", "1h")
+    os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    v.to_csv(ruta, index=False, compression="gzip")
+    os.makedirs(os.path.join(cfg["salida"]["carpeta"], "banco"))
+    reg = {"id": "banco0001", "simbolo": "AAA/USDT:USDT", "tf": "1h", "estrategia": TENDENCIA, "estado": "banco",
+           "examen": {"aprobada": True, "hasta_ms": int(v["ts"].iloc[corte - 1])}}
+    with open(os.path.join(cfg["salida"]["carpeta"], "banco", "banco0001.json"), "w", encoding="utf-8") as f:
+        json.dump(reg, f)
+    return cfg
+
+
+def test_revision_con_datos_nuevos_vence_la_que_deja_de_funcionar(tmp_path):
+    from fabrica.examen import revisar_banco
+    cfg = _al_banco(tmp_path, -0.4)  # después del examen el mercado va y viene: la tendencia deja de servir
+    r = revisar_banco(cfg, str(tmp_path))
+    assert r["revisadas"] == 1 and [v["id"] for v in r["vencidas"]] == ["banco0001"]
+    assert banco(cfg) == []  # ya no entra a la liga
+    guardada = banco(cfg, todas=True)[0]
+    assert guardada["estado"] == "vencida" and guardada["seguimiento"]["operaciones"] >= 10
+    assert os.path.exists(tmp_path / "seguimiento.json")
+
+
+def test_revision_con_datos_nuevos_mantiene_la_que_sigue_bien(tmp_path):
+    from fabrica.examen import revisar_banco
+    cfg = _al_banco(tmp_path, 0.25)
+    r = revisar_banco(cfg)
+    assert r["revisadas"] == 1 and r["vencidas"] == []
+    b = banco(cfg)
+    assert len(b) == 1 and b[0]["seguimiento"]["retorno_pct"] > 0
+
+
+def test_revision_sin_velas_nuevas_no_toca_nada(tmp_path):
+    from fabrica.examen import revisar_banco
+    cfg = _al_banco(tmp_path, -0.4, hasta_frac=1.0)
+    r = revisar_banco(cfg)
+    assert r == {"revisadas": 0, "sin_datos_nuevos": 1, "vencidas": []}
+    assert banco(cfg)[0]["estado"] == "banco" and "seguimiento" not in banco(cfg)[0]

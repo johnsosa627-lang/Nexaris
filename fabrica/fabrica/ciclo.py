@@ -203,7 +203,7 @@ def ciclo(cfg: dict, simbolos=None, tfs=None, procesos=None) -> dict:
     procesos = procesos if procesos is not None else cfg["generador"].get("procesos", 0)
     procesos = procesos or os.cpu_count() or 1
     inicio = datetime.now(timezone.utc)
-    from .examen import examinar_ciclo, ya_examinadas
+    from .examen import examinar_ciclo, revisar_banco, ya_examinadas
     cfg = {**cfg, "_examinadas": sorted(ya_examinadas(cfg))}
     tareas = [(cfg, s, t, sem) for _, s, t, sem in tareas]
     if procesos > 1 and len(tareas) > 1:
@@ -215,6 +215,7 @@ def ciclo(cfg: dict, simbolos=None, tfs=None, procesos=None) -> dict:
     if cfg.get("examen", {}).get("automatico", True):
         from .informes import informe_ciclo
         resumen["examenes"] = examinar_ciclo(cfg, resumen["carpeta"])
+        resumen["seguimiento"] = revisar_banco(cfg, resumen["carpeta"])
         resumen["informe"] = informe_ciclo(cfg, resumen["carpeta"])
     return resumen
 
