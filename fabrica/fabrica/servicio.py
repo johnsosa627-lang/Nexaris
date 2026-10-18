@@ -350,13 +350,12 @@ def configurar_log(carpeta):
 def main():
     from .ejecutor import EjecutorBinance, Mercado, crear_cliente_privado
     from .liga import Liga
-    from .telegram import Telegram
+    from .telegram import Telegram, limpiar_token
     cfg = cargar_config()
     carpeta_vivo = os.getenv("FABRICA_VIVO") or str(RAIZ / "vivo")
     configurar_log(carpeta_vivo)
     chat = os.getenv("TELEGRAM_CHAT_ID") or str(cfg.get("servicio", {}).get("telegram_chat_id") or "")
-    # Un token real nunca tiene "=": si se pegó "TELEGRAM_TOKEN=..." de más, me quedo con lo último
-    token = os.getenv("TELEGRAM_TOKEN", "").strip().rsplit("=", 1)[-1].strip()
+    token = limpiar_token(os.getenv("TELEGRAM_TOKEN", ""))
     tg = Telegram(token, chat.strip().rsplit("=", 1)[-1].strip())
     modo = (os.getenv("MODO") or "papel").strip().lower()
     clave, secreto = os.getenv("BINANCE_API_KEY", ""), os.getenv("BINANCE_API_SECRET", "")

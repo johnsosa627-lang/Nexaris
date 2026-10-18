@@ -303,6 +303,31 @@ def test_titular_en_binance(tmp_path):
     assert liga.e["cuenta"]["equity"] != 15
 
 
+def test_posicion_de_papel_sigue_simulada_al_pasar_a_testnet(tmp_path):
+    # Abierta en modo papel (estado guardado): en Binance no existe, así que no se da por "cerrada por el exchange"
+    liga, _, t = liga_papel(tmp_path)
+    liga.sincronizar_banco([registro(1)])
+    liga.completar_titulares()
+    bot = liga.e["bots"]["bot1"]
+    vela = {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100}
+    liga._abrir(bot, 1, 0.5, vela)
+    bot["posicion"].pop("modo")  # estados viejos no tenían el dato
+    liga.guardar()
+    ej = EjecutorFalso()
+    liga = Liga(cfg_prueba(), str(tmp_path), MercadoFalso(), ej, lambda m: None, reloj=lambda: t["ahora"], modo="testnet")
+    bot = liga.e["bots"]["bot1"]
+    liga._gestionar(bot, {"ts": 1, "open": 100, "high": 100.6, "low": 99.8, "close": 100.2})
+    liga.vigilar()
+    assert bot["posicion"] is not None and not ej.ordenes  # sigue abierta y simulada
+    stop = bot["posicion"]["stop"]
+    liga._gestionar(bot, {"ts": 2, "open": 100, "high": 100.1, "low": stop - 1, "close": stop - 0.5})
+    assert bot["posicion"] is None and "(exchange)" not in bot["trades"][-1]["motivo"]
+    assert bot["trades"][-1]["modo"] == "papel" and not ej.ordenes
+    # la siguiente ya se abre en Binance
+    liga._abrir(bot, 1, 0.5, vela)
+    assert bot["posicion"]["modo"] == "testnet" and any(o[0] == "abrir" for o in ej.ordenes)
+
+
 def test_estrategias_de_exploracion_nunca_operan_con_plata_real(tmp_path):
     t = {"ahora": 1_700_000_000.0}
     reg = registro(1)

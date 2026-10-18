@@ -201,3 +201,13 @@ def test_avisa_enseguida_si_el_ciclo_sale_vacio_o_se_corta(tmp_path):
     n = len(enviados)
     s._al_terminar_ciclo()
     assert len(enviados) == n + 1 and "se cortó con un error" in enviados[-1]
+
+
+def test_token_de_telegram_con_texto_de_mas():
+    from fabrica.telegram import limpiar_token
+    token = "123456789:" + "A" * 33 + "_-"
+    assert limpiar_token(token) == token
+    assert limpiar_token(f"TELEGRAM_TOKEN={token}") == token
+    assert limpiar_token(f" {token}TELEGRAM_TOKEN= ") == token  # texto pegado después
+    assert limpiar_token(f"{token}BINANCE_API_SECRET=") == token
+    assert limpiar_token("") == ""
