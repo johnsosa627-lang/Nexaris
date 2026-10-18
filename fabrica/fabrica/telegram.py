@@ -1,5 +1,6 @@
 """Telegram: comandos en español y avisos. Solo responde al TELEGRAM_CHAT_ID configurado."""
 import logging
+import re
 import unicodedata
 import threading
 import time
@@ -7,6 +8,17 @@ import time
 import requests
 
 log = logging.getLogger("fabrica")
+
+
+TOKEN = re.compile(r"\d{6,12}:[A-Za-z0-9_-]{35}")
+
+
+def limpiar_token(valor: str) -> str:
+    """El token del bot tiene la forma 123456789:<35 caracteres>. Si al pegarlo quedó texto de más
+    (por ejemplo "TELEGRAM_TOKEN=" repetido, antes o después), me quedo solo con el token."""
+    valor = (valor or "").strip()
+    m = TOKEN.search(valor)
+    return m.group(0) if m else valor.rsplit("=", 1)[-1].strip()
 
 
 class Telegram:
@@ -83,7 +95,12 @@ class Telegram:
                 if self._offset is not None:
                     params["offset"] = self._offset
                 r = requests.get(f"{self.url}/getUpdates", params=params, timeout=35)
-                for update in r.json().get("result", []):
+                datos = r.json()
+                if not datos.get("ok"):  # token mal puesto u otro problema: avisar en vez de girar en vacío
+                    log.warning("Telegram no acepta el token (%s): %s", r.status_code, str(datos.get("description"))[:200])
+                    time.sleep(60)
+                    continue
+                for update in datos.get("result", []):
                     self._offset = update["update_id"] + 1
                     self.procesar(update)
             except Exception as e:  # noqa: BLE001

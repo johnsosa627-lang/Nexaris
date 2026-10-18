@@ -112,7 +112,12 @@ class Liga:
         return [b for b in self.e["bots"].values() if rol is None or b["rol"] == rol]
 
     def con_dinero(self, bot) -> bool:
-        return bot["rol"] == "titular" and self.ejecutor is not None
+        """¿Este titular opera (o tiene abierta) una posición en Binance? Una posición abierta en modo papel
+        sigue simulada hasta cerrarse aunque después se pase a testnet/real: en el exchange no existe."""
+        if bot["rol"] != "titular" or self.ejecutor is None:
+            return False
+        pos = bot.get("posicion")
+        return pos is None or pos.get("modo", "papel") != "papel"
 
     def capital(self) -> float:
         return C.capital_base(float(self.R["capital_inicial"]), self.e["cuenta"]["equity"])
@@ -410,11 +415,13 @@ class Liga:
                 return
             cantidad, riesgo_real = None, float(self.R["capital_inicial"]) * self.riesgo_frac
         bot["omitidas_seguidas"] = 0
+        en_exchange = self.con_dinero(bot)
         bot["posicion"] = {"lado": lado, "entrada": entrada, "cantidad": cantidad, "riesgo_usdt": riesgo_real,
+                           "modo": self.modo if en_exchange else "papel",
                            "abierta_ts": int(self.reloj() * 1000), "velas": 0,
                            "abierta": self.ahora().isoformat(timespec="seconds"), **niv}
         if bot["rol"] == "titular":
-            if self.con_dinero(bot):
+            if en_exchange:
                 errores = self.ejecutor.proteger(bot["simbolo"], lado, cantidad, niv["stop"], niv["tp"])
                 if errores:
                     self.evento(f"⚠️ No se pudieron poner las órdenes de protección de {bot['id']}: {errores[0]}. "
@@ -442,7 +449,7 @@ class Liga:
         pos = bot["posicion"]
         trade = {"fecha": self.ahora().isoformat(timespec="seconds"), "rol": bot["rol"], "lado": pos["lado"],
                  "entrada": pos["entrada"], "salida": salida, "cantidad": pos["cantidad"], "r": r,
-                 "retorno": r * self.riesgo_frac, "pnl_usdt": pnl, "motivo": motivo}
+                 "retorno": r * self.riesgo_frac, "pnl_usdt": pnl, "motivo": motivo, "modo": pos.get("modo", "papel")}
         bot["trades"].append(trade)
         bot["posicion"] = None
         self._csv(bot, trade)
@@ -463,7 +470,7 @@ class Liga:
             if nuevo:
                 w.writeheader()
             w.writerow({"fecha": t["fecha"], "bot": bot["id"], "rol": t["rol"],
-                        "modo": self.modo if t["rol"] == "titular" else "papel", "simbolo": bot["simbolo"],
+                        "modo": t.get("modo", "papel"), "simbolo": bot["simbolo"],
                         "tf": bot["tf"], "lado": "LONG" if t["lado"] == 1 else "SHORT", "entrada": round(t["entrada"], 8),
                         "salida": round(t["salida"], 8), "cantidad": t["cantidad"] or "", "r": round(t["r"], 3),
                         "pnl_usdt": round(t["pnl_usdt"], 4), "motivo": t["motivo"]})
