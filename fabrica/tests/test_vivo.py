@@ -529,3 +529,20 @@ def test_guardar_desde_varios_hilos_a_la_vez(tmp_path):
         h.join()
     assert not errores
     assert not [n for n in os.listdir(tmp_path) if n.endswith(".tmp")]
+
+
+def test_orden_rechazada_por_binance_no_rompe_nada(tmp_path):
+    class EjecutorSinMargen(EjecutorFalso):
+        def abrir(self, s, lado, q):
+            raise RuntimeError('binanceusdm {"code":-2019,"msg":"Margin is insufficient."}')
+    ej = EjecutorSinMargen()
+    mensajes = []
+    t = {"ahora": 1_700_000_000.0}
+    liga = Liga(cfg_prueba(), str(tmp_path), MercadoFalso(), ej, mensajes.append, reloj=lambda: t["ahora"], modo="testnet")
+    liga.sincronizar_banco([registro(1)])
+    liga.completar_titulares()
+    bot = liga.e["bots"]["bot1"]
+    liga._abrir(bot, 1, 0.5, {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100})
+    assert bot["posicion"] is None
+    assert "rechazó" in bot["senales_perdidas"][-1]["motivo"]
+    assert any("billetera de Futuros" in m for m in mensajes)

@@ -370,6 +370,16 @@ def main():
     if modo in ("testnet", "real"):
         ejecutor = EjecutorBinance(crear_cliente_privado(modo, clave, secreto), cfg["riesgo"]["apalancamiento_max"],
                                    cfg["costos"]["comision_pct"])
+    if ejecutor is not None:
+        try:
+            saldo = ejecutor.saldo()
+            log.info("Saldo en Binance Futuros (%s): %.2f USDT", modo, saldo)
+            if saldo < float(cfg["riesgo"]["capital_inicial"]):
+                avisos.append(f"En la billetera de Futuros de Binance ({modo}) hay {saldo:.2f} USDT y el sistema "
+                              f"opera como si hubiera {cfg['riesgo']['capital_inicial']}: las órdenes pueden ser "
+                              "rechazadas por falta de margen. Pasá USDT a la billetera de Futuros.")
+        except Exception as e:  # noqa: BLE001
+            avisos.append(f"No pude leer el saldo de Binance ({modo}): {str(e)[:200]}. Revisá las claves.")
     liga = Liga(cfg, carpeta_vivo, Mercado(), ejecutor, tg.enviar, modo=modo)
     if modo == "real" and os.getenv("LIVE_TRADING", "").strip().lower() != "true":
         liga.e.update(apagado=True, motivo_apagado="MODO=real necesita LIVE_TRADING=true en la configuración")
