@@ -437,7 +437,21 @@ def test_resumen_nocturno_muestra_la_practica_de_los_suplentes(tmp_path):
     hoy = liga.ahora().isoformat(timespec="seconds")
     sup["trades"] += [{"fecha": hoy, "rol": "suplente", "r": 1.5}, {"fecha": hoy, "rol": "suplente", "r": -1.0}]
     texto = liga.texto_noche()
-    assert "Suplentes (práctica): 2 operación(es) hoy, 1 ganada(s), +0.5R." in texto
+    assert "Suplentes (práctica): 2 operación(es), 1 ganada(s), +0.5R." in texto
+
+
+def test_resumen_nocturno_cuenta_las_ultimas_24_horas(tmp_path):
+    # 22 h de Montevideo = 01 h UTC: una operación de la tarde quedó en el día UTC anterior y igual tiene que aparecer
+    from datetime import datetime, timezone
+    ahora = datetime(2026, 10, 19, 1, 0, tzinfo=timezone.utc).timestamp()
+    liga, _, _ = liga_papel(tmp_path, reloj=lambda: ahora)
+    liga.sincronizar_banco([registro(1)])
+    liga.completar_titulares()
+    tit = liga.e["bots"]["bot1"]
+    tit["trades"] += [{"fecha": "2026-10-18T19:21:08+00:00", "rol": "titular", "r": 2.4, "pnl_usdt": 2.44},
+                      {"fecha": "2026-10-17T19:00:00+00:00", "rol": "titular", "r": -1.0, "pnl_usdt": -1.0}]
+    texto = liga.texto_noche()
+    assert "ganó 2.44 dólares con 1 operaciones" in texto
 
 
 def test_examen_de_graduacion_solo_informa(tmp_path):
