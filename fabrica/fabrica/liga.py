@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
 import pandas as pd
@@ -564,19 +564,21 @@ class Liga:
 
     def texto_noche(self) -> str:
         c = self.e["cuenta"]
-        hoy = self.hoy()
-        n = sum(1 for b in self.bots() for t in b["trades"] if t["fecha"].startswith(hoy) and t["rol"] == "titular")
-        resultado_dia = "ganó" if c["pnl_hoy"] > 0 else "perdió" if c["pnl_hoy"] < 0 else "quedó igual"
-        partes = [f"🌙 Resumen del día: la cuenta {resultado_dia} {abs(c['pnl_hoy']):.2f} dólares con {n} operaciones "
-                  f"y ahora tiene {c['equity']:.2f}."]
+        # Últimas 24 horas (no el día UTC: a las 22 h de Montevideo el día UTC recién empieza y quedaría casi vacío)
+        desde = (self.ahora() - timedelta(hours=24)).isoformat(timespec="seconds")
+        titulares = [t for b in self.bots() for t in b["trades"] if t["fecha"] >= desde and t["rol"] == "titular"]
+        n, pnl = len(titulares), sum(t["pnl_usdt"] for t in titulares)
+        resultado_dia = "ganó" if pnl > 0 else "perdió" if pnl < 0 else "quedó igual"
+        partes = [f"🌙 Resumen de las últimas 24 horas: la cuenta {resultado_dia} {abs(pnl):.2f} dólares con {n} "
+                  f"operaciones y ahora tiene {c['equity']:.2f}."]
         abiertas = sum(1 for b in self.bots("titular") if b["posicion"])
         partes.append(f"Hay {len(self.bots('titular'))} bots titulares trabajando y {abiertas} operación(es) abierta(s).")
-        practica = [t for b in self.bots() for t in b["trades"] if t["fecha"].startswith(hoy) and t["rol"] == "suplente"]
+        practica = [t for b in self.bots() for t in b["trades"] if t["fecha"] >= desde and t["rol"] == "suplente"]
         if practica:
             r_total = sum(t["r"] for t in practica)
             ganadas = sum(1 for t in practica if t["r"] > 0)
-            partes.append(f"Suplentes (práctica): {len(practica)} operación(es) hoy, {ganadas} ganada(s), {r_total:+.1f}R.")
-        hechos = [e["texto"].split("\n")[0] for e in self.e["eventos"] if e["fecha"].startswith(hoy)
+            partes.append(f"Suplentes (práctica): {len(practica)} operación(es), {ganadas} ganada(s), {r_total:+.1f}R.")
+        hechos = [e["texto"].split("\n")[0] for e in self.e["eventos"] if e["fecha"] >= desde
                   and e["texto"][:2] in ("⬆️", "👴", "🔄", "🧯", "🛑")]
         if hechos:
             partes.append("Novedades: " + " ".join(hechos[:2]))

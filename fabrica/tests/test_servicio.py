@@ -76,7 +76,7 @@ def test_agenda_diaria_noche_y_ciclos(tmp_path):
     s.paso()
     assert llamadas["datos"] == 1 and liga.e["tareas"]["revision"] == "2026-10-14"
     assert llamadas["ciclos"] == []  # espera a que termine la descarga de datos
-    assert any("Resumen del día" in m for m in enviados)  # ya son más de las 22 en Montevideo
+    assert any("Resumen de las últimas 24 horas" in m for m in enviados)  # ya son más de las 22 en Montevideo
     s.paso()  # terminó la descarga y el banco está vacío: primer ciclo
     assert llamadas["datos"] == 1 and len(llamadas["ciclos"]) == 1 and sum("Resumen" in m for m in enviados) == 1
     s.paso()
