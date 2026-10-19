@@ -128,13 +128,31 @@ class Liga:
         return bot.get("retornos_backtest", [])
 
     # ------------------------------------------------------------------ banco y titulares
+    def _hacer_lugar_por_moneda(self, tope: int) -> int:
+        """Si una moneda tiene más suplentes que el tope, saca los que todavía no operaron (vuelven al banco y
+        pueden volver a entrar más adelante). Así hay lugar para las otras monedas."""
+        sacados = 0
+        for simbolo in {b["simbolo"] for b in self.bots("suplente")}:
+            de_la_moneda = sorted((b for b in self.bots("suplente") if b["simbolo"] == simbolo),
+                                  key=lambda b: (bool(b["trades"]), b["posicion"] is not None, b.get("fitness", 0.0)),
+                                  reverse=True)
+            for bot in de_la_moneda[tope:]:
+                if not bot["trades"] and bot["posicion"] is None:
+                    del self.e["bots"][bot["id"]]
+                    sacados += 1
+        return sacados
+
     def sincronizar_banco(self, registros: list) -> list:
+        tope = self.L.get("max_suplentes_por_moneda") or self.L["max_suplentes"]
+        sacados = self._hacer_lugar_por_moneda(tope)
         nuevos = []
         for reg in registros:
             if reg["id"] in self.e["bots"]:
                 continue
             if len(self.bots("suplente")) >= self.L["max_suplentes"]:
                 break
+            if sum(b["simbolo"] == reg["simbolo"] for b in self.bots("suplente")) >= tope:
+                continue  # esa moneda ya tiene sus lugares: le toca a otra
             self.e["bots"][reg["id"]] = {
                 "id": reg["id"], "rol": "suplente", "simbolo": reg["simbolo"], "tf": reg["tf"],
                 "estrategia": reg["estrategia"], "explicacion": reg.get("explicacion", ""),
@@ -146,7 +164,9 @@ class Liga:
                 "desde": self.ahora().isoformat(timespec="seconds"), "motivo_jubilacion": ""}
             nuevos.append(reg["id"])
         if nuevos:
-            self.evento(f"🆕 {len(nuevos)} estrategia(s) nueva(s) del banco entran como suplentes.", avisar=False)
+            self.evento(f"🆕 {len(nuevos)} estrategia(s) nueva(s) del banco entran como suplentes."
+                        + (f" ({sacados} sin operaciones volvieron al banco para dar lugar a otras monedas.)"
+                           if sacados else ""), avisar=False)
         self.guardar()
         return nuevos
 

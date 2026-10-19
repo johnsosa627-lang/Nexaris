@@ -113,6 +113,7 @@ liga:
   # Bots operando a la vez (titulares) y en práctica (suplentes)
   max_titulares: 8   # uno por moneda como máximo (más bots atentos = más señales); el riesgo abierto total sigue limitado al 3%
   max_suplentes: 30   # todos practican en papel (nunca plata real): más operaciones para aprender y encontrar fallas
+  max_suplentes_por_moneda: 4   # así los lugares se reparten entre las 10 monedas (y hay candidatos a titular en todas)
   # Los titulares no pueden parecerse entre sí más que esto (correlación de resultados diarios)
   max_correlacion: 0.5
   # Ascenso: el suplente necesita esta cantidad de operaciones en vivo (y el titular también)...
