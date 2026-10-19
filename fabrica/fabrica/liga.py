@@ -14,6 +14,7 @@ import csv
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
@@ -64,6 +65,7 @@ class Liga:
         self.ruta = os.path.join(carpeta, "estado_liga.json")
         self.ruta_csv = os.path.join(carpeta, "operaciones.csv")
         self._avisos = {}
+        self._lock_guardar = threading.RLock()
         capital = float(self.R["capital_inicial"])
         self.e = {"bots": {}, "pausado": False, "apagado": False, "motivo_apagado": "", "real_confirmado": False,
                   "cuenta": {"equity": capital, "pico": capital, "dia": "", "inicio_dia": capital,
@@ -84,11 +86,14 @@ class Liga:
 
     # ------------------------------------------------------------------ utilidades
     def guardar(self):
-        os.makedirs(self.carpeta, exist_ok=True)
-        tmp = self.ruta + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.e, f, indent=1, ensure_ascii=False)
-        os.replace(tmp, self.ruta)
+        # Lo llaman el bucle principal y los comandos de Telegram (otro hilo): de a uno, y cada hilo con su
+        # archivo temporal (con uno solo compartido, el segundo os.replace fallaba con "No such file or directory")
+        with self._lock_guardar:
+            os.makedirs(self.carpeta, exist_ok=True)
+            tmp = f"{self.ruta}.{threading.get_ident()}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(self.e, f, indent=1, ensure_ascii=False)
+            os.replace(tmp, self.ruta)
 
     def ahora(self) -> datetime:
         return datetime.fromtimestamp(self.reloj(), tz=timezone.utc)

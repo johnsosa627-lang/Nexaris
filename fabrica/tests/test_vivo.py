@@ -1,4 +1,6 @@
 """Liga y bots en vivo: mismas reglas que el backtest, protección de la cuenta, ascensos y jubilaciones."""
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -506,3 +508,24 @@ def test_la_practica_cuenta_desde_lo_mas_antiguo(tmp_path):
     t["ahora"] += 3600
     otra, _, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"])
     assert otra.e["creado"] == "2023-11-01T00:00:00+00:00"
+
+
+def test_guardar_desde_varios_hilos_a_la_vez(tmp_path):
+    import threading
+    liga, _, _ = liga_papel(tmp_path)
+    liga.sincronizar_banco([registro(i) for i in range(5)])
+    errores = []
+
+    def guardar_mucho():
+        try:
+            for _ in range(50):
+                liga.guardar()
+        except Exception as e:  # noqa: BLE001
+            errores.append(e)
+    hilos = [threading.Thread(target=guardar_mucho) for _ in range(4)]
+    for h in hilos:
+        h.start()
+    for h in hilos:
+        h.join()
+    assert not errores
+    assert not [n for n in os.listdir(tmp_path) if n.endswith(".tmp")]
