@@ -348,6 +348,25 @@ def test_estrategias_de_exploracion_nunca_operan_con_plata_real(tmp_path):
     assert bot["rol"] == "titular"
 
 
+def test_suplentes_repartidos_entre_monedas(tmp_path):
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_suplentes=6, max_suplentes_por_moneda=2))
+    # el banco viejo solo tenía AAA: se llenaron todos los lugares con esa moneda
+    liga.L["max_suplentes_por_moneda"] = 0
+    liga.sincronizar_banco([registro(i) for i in range(6)])
+    liga.L["max_suplentes_por_moneda"] = 2
+    liga.e["bots"]["bot5"]["trades"].append({"r": 1.0, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"})
+    # llegan estrategias de otras monedas: hay lugar para ellas
+    nuevos = liga.sincronizar_banco([registro(i) for i in range(6)] + [registro(10, "BBB/USDT:USDT"),
+                                     registro(11, "CCC/USDT:USDT"), registro(12, "CCC/USDT:USDT"),
+                                     registro(13, "CCC/USDT:USDT")])
+    por_moneda = {}
+    for b in liga.bots("suplente"):
+        por_moneda[b["simbolo"][:3]] = por_moneda.get(b["simbolo"][:3], 0) + 1
+    assert por_moneda == {"AAA": 2, "BBB": 1, "CCC": 2}
+    assert "bot5" in liga.e["bots"]  # la que ya operó no se saca
+    assert set(nuevos) == {"bot10", "bot11", "bot12"}
+
+
 def test_primero_las_estrictas(tmp_path):
     liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=1))
     flojo = registro(1, fitness=50)
