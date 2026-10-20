@@ -147,8 +147,32 @@ class Liga:
                     sacados += 1
         return sacados
 
+    def _parecidas(self, a: dict, b: dict) -> bool:
+        """¿Hacen casi lo mismo? Misma moneda y temporalidad, y las mismas reglas de entrada o resultados
+        diarios casi iguales. Dos así ganan y pierden juntas: cuentan doble y no enseñan nada nuevo."""
+        if a["simbolo"] != b["simbolo"] or a["tf"] != b["tf"]:
+            return False
+        if a["estrategia"].get("reglas") == b["estrategia"].get("reglas"):
+            return True
+        umbral = self.L.get("max_correlacion_suplentes", 0.8)
+        return C.correlacion(a.get("retornos_diarios") or {}, b.get("retornos_diarios") or {}) >= umbral
+
+    def _sacar_repetidas(self) -> int:
+        """Deja una sola de cada grupo de estrategias parecidas: primero los titulares, después la que más operó."""
+        quedan, sacados = [], 0
+        orden = self.bots("titular") + sorted(self.bots("suplente"), key=lambda b: (len(b["trades"]), b.get("fitness", 0.0)),
+                                              reverse=True)
+        for bot in orden:
+            if bot["rol"] == "suplente" and bot["posicion"] is None and any(self._parecidas(bot, q) for q in quedan):
+                del self.e["bots"][bot["id"]]
+                sacados += 1
+            else:
+                quedan.append(bot)
+        return sacados
+
     def sincronizar_banco(self, registros: list) -> list:
         tope = self.L.get("max_suplentes_por_moneda") or self.L["max_suplentes"]
+        repetidas = self._sacar_repetidas()
         sacados = self._hacer_lugar_por_moneda(tope)
         nuevos = []
         for reg in registros:
@@ -158,6 +182,8 @@ class Liga:
                 break
             if sum(b["simbolo"] == reg["simbolo"] for b in self.bots("suplente")) >= tope:
                 continue  # esa moneda ya tiene sus lugares: le toca a otra
+            if any(self._parecidas(reg, b) for b in self.bots("titular") + self.bots("suplente")):
+                continue  # ya hay una que hace casi lo mismo
             self.e["bots"][reg["id"]] = {
                 "id": reg["id"], "rol": "suplente", "simbolo": reg["simbolo"], "tf": reg["tf"],
                 "estrategia": reg["estrategia"], "explicacion": reg.get("explicacion", ""),
@@ -168,6 +194,9 @@ class Liga:
                 "posicion": None, "trades": [], "ultima_vela_ts": 0,
                 "desde": self.ahora().isoformat(timespec="seconds"), "motivo_jubilacion": ""}
             nuevos.append(reg["id"])
+        if repetidas:
+            self.evento(f"🧹 {repetidas} suplente(s) que repetían a otra estrategia (mismas señales) salieron de la liga.",
+                        avisar=False)
         if nuevos:
             self.evento(f"🆕 {len(nuevos)} estrategia(s) nueva(s) del banco entran como suplentes."
                         + (f" ({sacados} sin operaciones volvieron al banco para dar lugar a otras monedas.)"

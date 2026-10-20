@@ -350,17 +350,22 @@ def test_estrategias_de_exploracion_nunca_operan_con_plata_real(tmp_path):
     assert bot["rol"] == "titular"
 
 
+def distinta(i, simbolo="AAA/USDT:USDT"):
+    """Registro con reglas propias (para que no cuente como repetida de otra)."""
+    return registro(i, simbolo, estrategia={**TENDENCIA, "reglas": [{"tipo": "ruptura_donchian", "n": 20 + i}]})
+
+
 def test_suplentes_repartidos_entre_monedas(tmp_path):
     liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_suplentes=6, max_suplentes_por_moneda=2))
     # el banco viejo solo tenía AAA: se llenaron todos los lugares con esa moneda
     liga.L["max_suplentes_por_moneda"] = 0
-    liga.sincronizar_banco([registro(i) for i in range(6)])
+    liga.sincronizar_banco([distinta(i) for i in range(6)])
     liga.L["max_suplentes_por_moneda"] = 2
     liga.e["bots"]["bot5"]["trades"].append({"r": 1.0, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"})
     # llegan estrategias de otras monedas: hay lugar para ellas
-    nuevos = liga.sincronizar_banco([registro(i) for i in range(6)] + [registro(10, "BBB/USDT:USDT"),
-                                     registro(11, "CCC/USDT:USDT"), registro(12, "CCC/USDT:USDT"),
-                                     registro(13, "CCC/USDT:USDT")])
+    nuevos = liga.sincronizar_banco([distinta(i) for i in range(6)] + [distinta(10, "BBB/USDT:USDT"),
+                                     distinta(11, "CCC/USDT:USDT"), distinta(12, "CCC/USDT:USDT"),
+                                     distinta(13, "CCC/USDT:USDT")])
     por_moneda = {}
     for b in liga.bots("suplente"):
         por_moneda[b["simbolo"][:3]] = por_moneda.get(b["simbolo"][:3], 0) + 1
@@ -546,3 +551,30 @@ def test_orden_rechazada_por_binance_no_rompe_nada(tmp_path):
     assert bot["posicion"] is None
     assert "rechazó" in bot["senales_perdidas"][-1]["motivo"]
     assert any("billetera de Futuros" in m for m in mensajes)
+
+
+def test_no_entran_suplentes_repetidas(tmp_path):
+    liga, mensajes, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=0))
+    otra = {**TENDENCIA, "reglas": [{"tipo": "ruptura_donchian", "n": 55}]}
+    nuevos = liga.sincronizar_banco([registro(1), registro(2), registro(3, estrategia=otra),
+                                     registro(4, "BBB/USDT:USDT")])
+    # bot2 tiene las mismas reglas de entrada que bot1 en la misma moneda y temporalidad: no entra
+    assert nuevos == ["bot1", "bot3", "bot4"]
+    # resultados diarios casi iguales también cuentan como repetida
+    diario = {f"2024-01-{d:02d}": float(np.sin(d)) for d in range(1, 29)}
+    liga2, _, _ = liga_papel(tmp_path / "b", cfg_prueba(max_titulares=0))
+    a = registro(5, estrategia=otra, diario=diario)
+    b = registro(6, diario={k: v * 1.01 for k, v in diario.items()})
+    assert liga2.sincronizar_banco([a, b]) == ["bot5"]
+
+
+def test_se_sacan_las_repetidas_que_ya_estaban(tmp_path):
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=0, max_correlacion_suplentes=2.0))
+    # estado viejo: entraron tres iguales (antes no se controlaba)
+    for i in (1, 2, 3):
+        liga.e["bots"][f"bot{i}"] = {**liga.e["bots"].get("x", {}), "id": f"bot{i}", "rol": "suplente",
+                                     "simbolo": "AAA/USDT:USDT", "tf": "1h", "estrategia": TENDENCIA,
+                                     "fitness": 1.0, "posicion": None, "trades": [], "retornos_diarios": {}}
+    liga.e["bots"]["bot2"]["trades"] = [{"r": -1.0}, {"r": 2.0}]
+    liga.sincronizar_banco([])
+    assert list(liga.e["bots"]) == ["bot2"]  # queda la que más operó
