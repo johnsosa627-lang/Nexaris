@@ -75,10 +75,19 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 ## Próximos pasos
 
-1. Dejar trabajar la fábrica 1 o 2 meses en simulado y mirar los resúmenes.
-2. Cuando Binance verifique mi identidad: crear claves de Demo Trading y pasar a `MODO=testnet`.
-3. Solo si gana de forma constante: pasar a plata real con 100 USD, con permiso doble.
-4. Opcional, por seguridad: cambiar el token del bot en BotFather (estuvo visible en fotos) y actualizarlo en Easypanel.
+1. ✅ Hecho (octubre 2026): identidad verificada en Binance, claves de Demo Trading creadas y `MODO=testnet` funcionando (5.000 USDT de práctica en la billetera de Futuros de la demo).
+2. Dejar trabajar el sistema varias semanas en la demo y mirar los resúmenes (/bots, /diagnostico, /graduacion).
+3. Solo si gana de forma constante y el examen de graduación está todo en ✅: pasar a plata real con 100 USD, con permiso doble.
+4. Opcional, por seguridad: cambiar el token del bot en BotFather y la contraseña de Easypanel (estuvieron visibles en fotos).
+
+## Ideas guardadas para más adelante (no ahora)
+
+- **FTMO / MetaTrader** (opción si lo nuestro no funciona en Binance, o para operar más capital): examen pago, reglas de −5% diario y −10% total (parecidas a nuestros frenos; habría que poner el freno total en −10%), bots en MetaTrader 5 (su conexión con Python necesita Windows) y la fábrica aprendiendo con datos de forex/oro.
+- **Piezas nuevas para la fábrica:** interés abierto y liquidaciones de Binance.
+- **Salidas parciales:** cerrar la mitad en ganancia y dejar correr el resto.
+- **"Te pruebo tu estrategia":** vender por Telegram informes del probador anti-suerte para la estrategia que pida el cliente (sin manejar plata ni claves de nadie; consultar con un contador antes de cobrar).
+- **Oro, Nasdaq y acciones:** necesitan años de historia y otro bróker para acciones.
+- **Usar a los bots que ganan en vivo como semillas** de la fábrica.
 
 ## Reglas para la IA que me ayude
 
