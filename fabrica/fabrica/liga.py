@@ -357,7 +357,12 @@ class Liga:
         fresca = self.reloj() * 1000 - (ultima_ts + tf_ms(tf)) <= tf_ms(tf)
         externos_cache = None
         for bot in [b for b in self.bots() if b["rol"] in ("titular", "suplente") and b["simbolo"] == simbolo and b["tf"] == tf]:
-            nuevas = velas[velas["ts"] > bot["ultima_vela_ts"]] if bot["ultima_vela_ts"] else velas.tail(1)
+            if not bot["ultima_vela_ts"]:
+                # Recién llegado: arranca desde la próxima vela. Si operara la señal de una vela que cerró antes de
+                # que entrara, lo haría tarde (y en simulado al precio de cierre ya pasado, que es ventaja falsa).
+                bot["ultima_vela_ts"] = ultima_ts
+                continue
+            nuevas = velas[velas["ts"] > bot["ultima_vela_ts"]]
             for vela in nuevas.to_dict("records"):
                 self._gestionar(bot, vela)
                 bot["ultima_vela_ts"] = int(vela["ts"])
