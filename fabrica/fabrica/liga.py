@@ -614,10 +614,17 @@ class Liga:
                           f"{r:+.1f}R ({pnl:+.2f} USDT){' · abierta' if b['posicion'] else ''}")
         if not self.bots("titular"):
             lineas.append("(todavía ninguno)")
-        lineas.append("🪑 SUPLENTES (practican simulados)")
-        for b in sorted(self.bots("suplente"), key=lambda x: -sum(t["r"] for t in x["trades"]))[:10]:
+        suplentes = sorted(self.bots("suplente"), key=lambda x: -sum(t["r"] for t in x["trades"]))
+        lineas.append(f"🪑 SUPLENTES (practican simulados): {len(suplentes)}")
+
+        def linea(b):
             n, g, r, _ = self._stats(b)
-            lineas.append(f"• {'🧪 ' if b.get('nivel') == 'exploracion' else ''}{b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones, {g} ganadas, {r:+.1f}R")
+            return f"• {'🧪 ' if b.get('nivel') == 'exploracion' else ''}{b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones, {g} ganadas, {r:+.1f}R"
+        if len(suplentes) <= 10:
+            lineas += [linea(b) for b in suplentes]
+        else:  # los 5 mejores y los 5 peores: que las pérdidas también se vean
+            lineas += ["Los 5 mejores:"] + [linea(b) for b in suplentes[:5]]
+            lineas += [f"… ({len(suplentes) - 10} más en el medio)", "Los 5 peores:"] + [linea(b) for b in suplentes[-5:]]
         if not self.bots("suplente"):
             lineas.append("(ninguno)")
         lineas.append("R = veces lo arriesgado (+2R = ganó el doble de lo que arriesgaba).")

@@ -578,3 +578,13 @@ def test_se_sacan_las_repetidas_que_ya_estaban(tmp_path):
     liga.e["bots"]["bot2"]["trades"] = [{"r": -1.0}, {"r": 2.0}]
     liga.sincronizar_banco([])
     assert list(liga.e["bots"]) == ["bot2"]  # queda la que más operó
+
+
+def test_bots_muestra_tambien_los_peores_suplentes(tmp_path):
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=0, max_suplentes=30, max_suplentes_por_moneda=30))
+    liga.sincronizar_banco([distinta(i) for i in range(14)])
+    liga.e["bots"]["bot0"]["trades"] = [{"r": 3.0, "pnl_usdt": 0.0, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}]
+    liga.e["bots"]["bot7"]["trades"] = [{"r": -2.0, "pnl_usdt": 0.0, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}]
+    texto = liga.texto_bots()
+    assert "SUPLENTES (practican simulados): 14" in texto
+    assert "bot0" in texto and "bot7" in texto and "Los 5 peores:" in texto
