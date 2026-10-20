@@ -445,6 +445,8 @@ def test_bot_con_datos_externos_los_pide_en_vivo_y_si_fallan_no_entra(tmp_path):
     siempre = {"lado": "long", "reglas": [{"tipo": "miedo_codicia", "op": "<", "nivel": 30}],
                "salidas": {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "atr", "tp": 4.0, "trailing": 0.0, "max_velas": 0}}
     liga.sincronizar_banco([registro(1, estrategia=siempre), registro(2, "AAA/USDT:USDT")])
+    liga.procesar_velas("AAA/USDT:USDT", "1h", v.iloc[:-1])  # al entrar, arrancan desde la próxima vela
+    assert pedidos == [] and liga.e["bots"]["bot1"]["posicion"] is None
     liga.procesar_velas("AAA/USDT:USDT", "1h", v)
     assert pedidos == ["AAA/USDT:USDT"]                     # se pide una sola vez por vela y solo si hace falta
     assert liga.e["bots"]["bot1"]["posicion"] is not None    # miedo 10 < 30: entra
@@ -588,3 +590,19 @@ def test_bots_muestra_tambien_los_peores_suplentes(tmp_path):
     texto = liga.texto_bots()
     assert "SUPLENTES (practican simulados): 14" in texto
     assert "bot0" in texto and "bot7" in texto and "Los 5 peores:" in texto
+
+
+def test_bot_recien_llegado_no_opera_la_senal_de_una_vela_vieja(tmp_path):
+    v = serie_mercado(300, 2, 0.2)
+    t = {"ahora": (int(v["ts"].iloc[-1]) + H) / 1000 + 1}
+    liga, _, _ = liga_papel(tmp_path, reloj=lambda: t["ahora"])
+    siempre = {"lado": "long", "reglas": [{"tipo": "rsi_filtro", "n": 14, "op": ">", "nivel": 0}],
+               "salidas": {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "ninguno", "tp": 0.0, "trailing": 0.0, "max_velas": 0}}
+    liga.sincronizar_banco([registro(1, estrategia=siempre)])
+    bot = liga.e["bots"]["bot1"]
+    liga.procesar_velas("AAA/USDT:USDT", "1h", v)          # la última vela cerró antes de que entrara
+    assert bot["posicion"] is None and bot["ultima_vela_ts"] == int(v["ts"].iloc[-1])
+    t["ahora"] += 3600
+    v2 = pd.concat([v, v.tail(1).assign(ts=v["ts"].iloc[-1] + H)], ignore_index=True)
+    liga.procesar_velas("AAA/USDT:USDT", "1h", v2)          # la primera vela nueva sí cuenta
+    assert bot["posicion"] is not None
