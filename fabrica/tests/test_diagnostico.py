@@ -28,3 +28,14 @@ def test_senales_sin_operar_y_coincidencia_con_vivo(tmp_path):
     assert "Ninguna señal quedó sin operar" in operando
     sin_datos = diagnostico.diagnosticar(cfg, [{**bot, "simbolo": "ZZZ/USDT:USDT"}])
     assert sin_datos[0]["error"]
+
+
+def test_cuenta_la_vela_que_estaba_abierta_cuando_entro_el_bot(tmp_path):
+    # entró a mitad de una vela: esa vela cierra después y el bot en vivo la opera, así que cuenta
+    escribir_mercados(str(tmp_path), ["AAA/USDT:USDT"], 0.2, n=3000)
+    cfg = cargar_config()
+    cfg["datos"]["carpeta"] = str(tmp_path)
+    desde = pd.Timestamp(T0 + 2700 * H + H // 2, unit="ms", tz="UTC").isoformat()
+    bot = {"id": "b1", "rol": "suplente", "simbolo": "AAA/USDT:USDT", "tf": "1h", "estrategia": TENDENCIA,
+           "desde": desde, "trades": [], "posicion": None}
+    assert diagnostico.diagnosticar(cfg, [bot])[0]["velas_en_vivo"] == 300
