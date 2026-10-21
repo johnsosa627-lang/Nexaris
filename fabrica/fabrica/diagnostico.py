@@ -31,7 +31,8 @@ def diagnosticar_bot(cfg: dict, bot: dict, historia: int = 1000) -> dict:
         externos = externos_para(velas["ts"].to_numpy(), bot["tf"], cargar_funding(carpeta, bot["simbolo"]),
                                  cargar_velas(carpeta, SIMBOLO_LIDER, bot["tf"]), cargar_miedo_codicia(carpeta))
     desde = _ms(bot["desde"])
-    en_vivo = (velas["ts"] >= desde).to_numpy()
+    # En vivo cuenta toda vela que CERRÓ después de que el bot entró (la que estaba abierta en ese momento también)
+    en_vivo = ((velas["ts"] + _paso(velas)) > desde).to_numpy()
     largo, corto = senales(Contexto(velas, externos), bot["estrategia"])
     n_historia = int(((largo | corto) & en_vivo).sum())
     # como en vivo: vela por vela, solo con las últimas `historia` velas
