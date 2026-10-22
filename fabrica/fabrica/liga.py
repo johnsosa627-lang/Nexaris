@@ -8,7 +8,7 @@
   claramente mejor (prueba estadística, no una racha).
 - Jubilación: si la caída en vivo supera la peor prevista por Monte Carlo, o si los resultados
   se alejan mucho de lo que prometía el backtest.
-- Protección de la cuenta: 1% de riesgo por operación, 3% abierto total, freno diario y freno total.
+- Protección de la cuenta: riesgo chico por operación (config), 3% abierto total, freno diario y freno total.
 """
 import csv
 import json
@@ -220,7 +220,7 @@ class Liga:
         return not self.debe_jubilarse(bot)[0]
 
     def operable(self, bot) -> bool:
-        """¿Puede operar con el capital actual respetando el 1% de riesgo y el mínimo de Binance?"""
+        """¿Puede operar con el capital actual respetando el riesgo por operación y el mínimo de Binance?"""
         try:
             _, min_nocional = self.mercado.limites(bot["simbolo"])
         except Exception:  # noqa: BLE001 - sin datos del mercado no se descarta
@@ -457,7 +457,7 @@ class Liga:
                 bot["omitidas"] = bot.get("omitidas", 0) + 1
                 bot["omitidas_seguidas"] = bot.get("omitidas_seguidas", 0) + 1
                 self._aviso_unico(f"min-{bot['id']}", f"🚫 {bot['id']} ({_moneda(bot['simbolo'])}) tuvo señal pero no "
-                                                      f"opera: {motivo}. Con {capital:.2f} USDT y 1% de riesgo no alcanza.")
+                                                      f"opera: {motivo}. Con {capital:.2f} USDT y {self.R['riesgo_por_operacion_pct']:g}% de riesgo no alcanza.")
                 return
             if self.con_dinero(bot):
                 try:
