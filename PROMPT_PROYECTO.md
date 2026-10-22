@@ -77,6 +77,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 1. ✅ Hecho (octubre 2026): identidad verificada en Binance, claves de Demo Trading creadas y `MODO=testnet` funcionando (5.000 USDT de práctica en la billetera de Futuros de la demo).
 2. Dejar trabajar el sistema varias semanas en la demo y mirar los resúmenes (/bots, /diagnostico, /graduacion).
+   - Acordado para después del informe del domingo 25/10, si opera poco: (a) que la fábrica busque más estrategias de velas de 15 minutos; (b) permitir 2 titulares por moneda si son distintos entre sí. El riesgo por operación queda en 1% (subirlo no da más operaciones: con el tope de 3% abierto, entrarían menos).
 3. Solo si gana de forma constante y el examen de graduación está todo en ✅: pasar a plata real con 100 USD, con permiso doble.
 4. Opcional, por seguridad: cambiar el token del bot en BotFather y la contraseña de Easypanel (estuvieron visibles en fotos).
 
