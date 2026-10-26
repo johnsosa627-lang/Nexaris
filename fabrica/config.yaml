@@ -146,7 +146,7 @@ preparacion_real:
   min_bots_listos: 1             # bots estrictos (no 🧪) que ganan en vivo como en sus pruebas
   min_semanas_testnet: 2         # semanas en la cuenta de práctica de Binance (Demo Trading)
   # Una 🧪 (no pasó la prueba anti-suerte) puede graduarse demostrando en vivo que gana de verdad:
-  min_operaciones_exploracion: 50
+  min_operaciones_exploracion: 30   # (era 50; John lo bajó en octubre 2026. La prueba t ≥ 2 sigue igual)
   t_minimo_exploracion: 2.0      # prueba estadística: que su ganancia promedio en vivo no sea casualidad
 
 servicio:

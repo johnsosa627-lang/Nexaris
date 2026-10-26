@@ -491,7 +491,8 @@ def test_examen_de_graduacion_solo_informa(tmp_path):
     # un bot estricto con 30 operaciones ganadoras parecidas a sus pruebas cuenta como "probado"; uno 🧪 nunca
     for b in liga.e["bots"].values():
         b["trades"] = [{"r": 0.8, "retorno": 0.008, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}] * 30
-    assert [b["id"] for b in liga.bots_listos()] == ["bot1"]  # la 🧪 con 30 todavía no alcanza
+    liga.e["bots"]["bot2"]["trades"] = liga.e["bots"]["bot2"]["trades"][:29]
+    assert [b["id"] for b in liga.bots_listos()] == ["bot1"]  # la 🧪 con menos de 30 todavía no alcanza
     import numpy as np
     sup = liga.e["bots"]["bot2"]
     rs = np.random.default_rng(1).normal(0.4, 1.0, 60)              # 60 operaciones con ganancia clara
