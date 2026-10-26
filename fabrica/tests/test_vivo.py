@@ -606,3 +606,29 @@ def test_bot_recien_llegado_no_opera_la_senal_de_una_vela_vieja(tmp_path):
     v2 = pd.concat([v, v.tail(1).assign(ts=v["ts"].iloc[-1] + H)], ignore_index=True)
     liga.procesar_velas("AAA/USDT:USDT", "1h", v2)          # la primera vela nueva sí cuenta
     assert bot["posicion"] is not None
+
+
+def test_dos_titulares_por_moneda_pero_una_posicion_a_la_vez(tmp_path):
+    ej = EjecutorFalso()
+    t = {"ahora": 1_700_000_000.0}
+    liga = Liga(cfg_prueba(max_titulares_por_moneda=2), str(tmp_path), MercadoFalso(), ej, lambda m: None,
+                reloj=lambda: t["ahora"], modo="testnet")
+    liga.sincronizar_banco([distinta(1), distinta(2), registro(3)])  # tres estrategias distintas de la misma moneda
+    liga.completar_titulares()
+    titulares = [b["id"] for b in liga.bots("titular")]
+    assert len(titulares) == 2  # dos por moneda como máximo, y distintas entre sí
+    a, b = (liga.e["bots"][i] for i in titulares)
+    vela = {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100}
+    liga._abrir(a, 1, 0.5, vela)
+    assert a["posicion"] is not None
+    liga._abrir(b, -1, 0.5, vela)  # la moneda ya tiene una posición en Binance: no se mezcla
+    assert b["posicion"] is None and "ya tiene una posición abierta" in b["senales_perdidas"][-1]["motivo"]
+    assert sum(o[0] == "abrir" for o in ej.ordenes) == 1
+
+
+def test_ajustes_por_temporalidad_en_la_fabrica():
+    from fabrica.config import cargar_config
+    g = cargar_config()["generador"]
+    g15 = {**g, **(g.get("por_temporalidad") or {}).get("15m", {})}
+    g1h = {**g, **(g.get("por_temporalidad") or {}).get("1h", {})}
+    assert g15["candidatas"] > g1h["candidatas"] and g15["operaciones_por_anio_objetivo"] > g1h["operaciones_por_anio_objetivo"]

@@ -76,6 +76,7 @@ def procesar_combo(cfg: dict, simbolo: str, tf: str, semilla: int) -> dict:
     inicio = time.time()
     rng = np.random.default_rng(semilla)
     g, f = cfg["generador"], cfg["filtros"]
+    g = {**g, **(g.get("por_temporalidad") or {}).get(tf, {})}  # ajustes propios de cada temporalidad
     mercado = Mercado(cfg)
     trabajo, fund, corte_examen = mercado.trabajo(simbolo, tf)
     resultado = {"simbolo": simbolo, "tf": tf, "embudo": {}, "aprobadas": [], "descartes": []}
