@@ -632,3 +632,17 @@ def test_ajustes_por_temporalidad_en_la_fabrica():
     g15 = {**g, **(g.get("por_temporalidad") or {}).get("15m", {})}
     g1h = {**g, **(g.get("por_temporalidad") or {}).get("1h", {})}
     assert g15["candidatas"] > g1h["candidatas"] and g15["operaciones_por_anio_objetivo"] > g1h["operaciones_por_anio_objetivo"]
+
+
+def test_informe_semanal_no_suma_la_practica_de_un_titular_nuevo(tmp_path):
+    liga, _, _ = liga_papel(tmp_path)
+    liga.sincronizar_banco([registro(1)])
+    liga.completar_titulares()
+    bot = liga.e["bots"]["bot1"]
+    hoy = liga.ahora().isoformat(timespec="seconds")
+    bot["trades"] = [{"fecha": hoy, "rol": "suplente", "r": -1.0, "pnl_usdt": -1.0},   # práctica, antes de subir
+                     {"fecha": hoy, "rol": "titular", "r": 2.0, "pnl_usdt": 2.0}]
+    texto = liga.texto_semana()
+    assert "Resultado de los titulares en 7 días: +2.00 USDT" in texto
+    assert "cuando era suplente" in texto
+    assert "1 operaciones en vivo, 1 ganadas" in liga.texto_bots()
