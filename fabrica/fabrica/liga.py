@@ -1,6 +1,7 @@
 """La liga de bots: titulares (operan) y suplentes (practican en paralelo con plata de mentira).
 
-- Titulares: hasta N, que no se parezcan entre sí (correlación < 0,5) y uno por moneda.
+- Titulares: hasta N, que no se parezcan entre sí (correlación < 0,5) y hasta 2 por moneda (pero una sola
+  posición abierta por moneda a la vez: Binance junta todo lo de una moneda en una única posición).
   En modo testnet operan en la cuenta Demo de Binance; en modo papel, simulados.
 - Suplentes: SIEMPRE simulados con precios reales (Binance permite una sola posición por moneda
   en una cuenta, así que no pueden compartir la cuenta con los titulares).
@@ -212,8 +213,10 @@ class Liga:
         if bot.get("no_operable") or not self.operable(bot):
             return False  # con este capital no llega al mínimo de Binance: no ocupa un lugar de titular
         titulares = [t for t in self.bots("titular") if t["id"] != excluir]
-        if any(t["simbolo"] == bot["simbolo"] for t in titulares):
-            return False  # una sola posición por moneda en la cuenta
+        if sum(t["simbolo"] == bot["simbolo"] for t in titulares) >= self.L.get("max_titulares_por_moneda", 1):
+            return False  # pocos por moneda: igual opera de a una posición por moneda (ver _abrir)
+        if any(self._parecidas(bot, t) for t in titulares):
+            return False
         if any(abs(C.correlacion(bot["retornos_diarios"], t["retornos_diarios"])) >= self.L["max_correlacion"]
                for t in titulares):
             return False
@@ -435,6 +438,12 @@ class Liga:
             bloqueo = self.puede_operar()
             if bloqueo:
                 self._senal_perdida(bot, lado, bloqueo)
+                return
+            ocupada = next((t for t in self.bots("titular")
+                            if t["id"] != bot["id"] and t["simbolo"] == bot["simbolo"] and t["posicion"]), None)
+            if ocupada:  # en Binance hay una sola posición por moneda: no se mezclan dos bots en la misma
+                self._senal_perdida(bot, lado, f"{ocupada['id']} ya tiene una posición abierta en "
+                                               f"{_moneda(bot['simbolo'])}")
                 return
             precio = self.ejecutor.precio(bot["simbolo"]) if self.con_dinero(bot) else vela["close"]
             niv = niveles(bot["estrategia"]["salidas"], lado, precio, atr, dist_rango)
