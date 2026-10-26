@@ -675,7 +675,7 @@ class Liga:
 
     def graduado(self, bot) -> bool:
         """¿Demostró en vivo que gana? Estrictas: 30+ operaciones ganando como en sus pruebas.
-        🧪: más exigente, 50+ operaciones y una prueba estadística de que su ganancia no es casualidad."""
+        🧪: más exigente, 30+ operaciones (config) y una prueba estadística de que su ganancia no es casualidad."""
         P = self.cfg.get("preparacion_real", {})
         rs = [t["r"] for t in bot["trades"]]
         if bot.get("nivel") == "exploracion":

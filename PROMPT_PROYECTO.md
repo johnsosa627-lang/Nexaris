@@ -35,7 +35,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Examen final:** se rinde **una sola vez** por estrategia. Las aprobadas van al banco.
 - **Revisión con datos nuevos (cada ciclo):** cada estrategia del banco se prueba en las semanas posteriores a su examen. Si con 10+ operaciones pierde plata, queda "vencida" y no entra a la liga. Las que van mejor entran primero.
 - **Liga:** hasta 8 **titulares** (los que operan; hasta 2 estrategias distintas por moneda pero una sola posición abierta por moneda; nunca más de 3% de riesgo abierto), con correlación menor a 0,5, y **suplentes** que operan en papel. Ascenso con prueba t ≥ 2 y al menos 30 operaciones. **Jubilación automática** si la caída real supera la del Monte Carlo o si rinde mucho peor que en las pruebas.
-- **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y practican en simulado. Solo pueden llegar a plata real si se "gradúan" operando en vivo (50+ operaciones y una prueba estadística t ≥ 2 de que su ganancia no es casualidad), y siempre con el permiso doble.
+- **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y practican en simulado. Solo pueden llegar a plata real si se "gradúan" operando en vivo (30+ operaciones y una prueba estadística t ≥ 2 de que su ganancia no es casualidad), y siempre con el permiso doble.
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
 
 ## Reglas de riesgo (no se tocan)
