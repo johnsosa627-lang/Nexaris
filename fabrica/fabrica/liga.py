@@ -579,8 +579,11 @@ class Liga:
         self.guardar()
 
     # ------------------------------------------------------------------ textos para Telegram
-    def _stats(self, bot, desde: Optional[str] = None):
-        trades = [t for t in bot["trades"] if desde is None or t["fecha"] >= desde]
+    def _stats(self, bot, desde: Optional[str] = None, rol: Optional[str] = None):
+        """Operaciones del bot (desde una fecha y/o solo las que hizo con un rol: un titular nuevo trae las
+        de su práctica como suplente, que no movieron la cuenta)."""
+        trades = [t for t in bot["trades"] if (desde is None or t["fecha"] >= desde)
+                  and (rol is None or t.get("rol") == rol)]
         n = len(trades)
         ganadas = sum(t["r"] > 0 for t in trades)
         return n, ganadas, sum(t["r"] for t in trades), sum(t["pnl_usdt"] for t in trades)
@@ -623,7 +626,7 @@ class Liga:
     def texto_bots(self) -> str:
         lineas = ["🏆 TITULARES"]
         for b in self.bots("titular") or []:
-            n, g, r, pnl = self._stats(b)
+            n, g, r, pnl = self._stats(b, rol="titular")
             lineas.append(f"• {'🧪 ' if b.get('nivel') == 'exploracion' else ''}{b['id']} {_moneda(b['simbolo'])} {b['tf']}: {n} operaciones en vivo, {g} ganadas, "
                           f"{r:+.1f}R ({pnl:+.2f} USDT){' · abierta' if b['posicion'] else ''}")
         if not self.bots("titular"):
@@ -730,11 +733,14 @@ class Liga:
         lineas = ["📰 INFORME SEMANAL"]
         total = 0.0
         for b in self.bots("titular") + self.bots("suplente"):
-            n, g, r, pnl = self._stats(b, desde)
-            if n:
-                if b["rol"] == "titular":
+            for rol in ("titular", "suplente"):  # separado: solo lo que hizo como titular movió la cuenta
+                n, g, r, pnl = self._stats(b, desde, rol)
+                if not n:
+                    continue
+                if rol == "titular":
                     total += pnl
-                lineas.append(f"• {b['id']} ({b['rol']}, {_moneda(b['simbolo'])} {b['tf']}): {n} operaciones, "
+                como = rol if rol == b["rol"] else f"{b['rol']}, cuando era {rol}"
+                lineas.append(f"• {b['id']} ({como}, {_moneda(b['simbolo'])} {b['tf']}): {n} operaciones, "
                               f"{g} ganadas, {r:+.1f}R")
         lineas.insert(1, f"Resultado de los titulares en 7 días: {total:+.2f} USDT. Cuenta: {self.e['cuenta']['equity']:.2f} USDT.")
         hechos = [e["texto"].split("\n")[0] for e in self.e["eventos"] if e["fecha"] >= desde
