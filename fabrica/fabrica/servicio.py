@@ -25,6 +25,18 @@ from .examen import banco
 log = logging.getLogger("fabrica")
 
 
+def texto_error(e: Exception) -> str:
+    """Aviso de Telegram para un error del bucle, en palabras simples cuando es un corte con Binance."""
+    try:
+        import ccxt
+        corte = isinstance(e, ccxt.NetworkError)  # sin respuesta a tiempo, conexión cortada, Binance caído
+    except ImportError:
+        corte = False
+    if corte:
+        return "⚠️ Binance no respondió a tiempo. Vuelvo a intentar solo en 5 segundos, no hace falta que hagas nada."
+    return f"⚠️ Error: {str(e)[:300]}"
+
+
 class Servicio:
     def __init__(self, cfg: dict, liga, mercado, enviar: Callable[[str], None], reloj: Callable[[], float] = time.time,
                  lanzar_ciclo: Optional[Callable] = None, actualizar_datos: Optional[Callable] = None):
@@ -70,7 +82,7 @@ class Servicio:
                 self.paso()
             except Exception as e:  # noqa: BLE001
                 log.exception("Error en el bucle")
-                self.liga._aviso_unico(f"error-{type(e).__name__}", f"⚠️ Error: {str(e)[:300]}")
+                self.liga._aviso_unico(f"error-{type(e).__name__}", texto_error(e))
             time.sleep(5)
 
     def _velas(self):

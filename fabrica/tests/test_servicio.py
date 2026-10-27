@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from fabrica.servicio import Servicio
+from fabrica.servicio import Servicio, texto_error
 from fabrica.telegram import Telegram
 from tests.conftest import H, serie_mercado
 from tests.test_vivo import MercadoFalso, cfg_prueba, liga_papel, registro
@@ -211,3 +211,12 @@ def test_token_de_telegram_con_texto_de_mas():
     assert limpiar_token(f" {token}TELEGRAM_TOKEN= ") == token  # texto pegado después
     assert limpiar_token(f"{token}BINANCE_API_SECRET=") == token
     assert limpiar_token("") == ""
+
+
+def test_aviso_simple_si_binance_no_responde():
+    import ccxt
+    url = "binanceusdm GET https://demo-fapi.binance.com/fapi/v3/positionRisk?timestamp=1&signature=abc"
+    for e in (ccxt.RequestTimeout(url), ccxt.NetworkError(url), ccxt.ExchangeNotAvailable(url)):
+        texto = texto_error(e)
+        assert "Binance no respondió" in texto and "signature" not in texto
+    assert texto_error(ValueError("otra cosa")) == "⚠️ Error: otra cosa"
