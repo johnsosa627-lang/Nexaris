@@ -72,7 +72,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 139 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 140 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 
