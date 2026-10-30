@@ -1,4 +1,5 @@
 """Telegram: comandos en español y avisos. Solo responde al TELEGRAM_CHAT_ID configurado."""
+import difflib
 import logging
 import re
 import unicodedata
@@ -67,7 +68,10 @@ class Telegram:
         argumentos = partes[1].strip().lower() if len(partes) > 1 else ""
         funcion = self.comandos.get(comando)
         if not funcion:
-            respuesta = "Comandos: " + " ".join(sorted(self.comandos))
+            # error de tipeo ("/clico"): si se parece mucho a un comando, sugerirlo
+            parecido = difflib.get_close_matches(comando, list(self.comandos), n=1, cutoff=0.6)
+            respuesta = (f"¿Quisiste decir {parecido[0]}? Tocalo para mandarlo.\n\n" if parecido else "") + \
+                "Comandos: " + " ".join(sorted(self.comandos))
         else:
             try:
                 respuesta = funcion(argumentos)

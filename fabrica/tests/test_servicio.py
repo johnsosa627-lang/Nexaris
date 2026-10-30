@@ -237,3 +237,16 @@ def test_retoma_el_ciclo_si_el_sistema_se_reinicio_en_el_medio(tmp_path):
     assert len(llamadas["ciclos"]) == 2 and any("se cortó porque el sistema se reinició" in m for m in enviados)
     s2._al_terminar_ciclo()
     assert "ciclo_corriendo" not in liga.e["tareas"]
+
+
+def test_sugiere_el_comando_si_hay_error_de_tipeo():
+    from fabrica.telegram import Telegram
+    tg = Telegram("123456789:" + "A" * 35, "1")
+    enviados = []
+    tg.enviar = enviados.append
+    tg.registrar("/ciclo", lambda a: "ok")
+    tg.registrar("/salud", lambda a: "ok")
+    tg.procesar({"message": {"chat": {"id": 1}, "text": "/clico"}})
+    assert enviados[-1].startswith("¿Quisiste decir /ciclo?")
+    tg.procesar({"message": {"chat": {"id": 1}, "text": "/xyz"}})
+    assert enviados[-1].startswith("Comandos:")
