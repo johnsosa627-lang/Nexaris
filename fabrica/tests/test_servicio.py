@@ -220,3 +220,20 @@ def test_aviso_simple_si_binance_no_responde():
         texto = texto_error(e)
         assert "Binance no respondió" in texto and "signature" not in texto
     assert texto_error(ValueError("otra cosa")) == "⚠️ Error: otra cosa"
+
+
+def test_retoma_el_ciclo_si_el_sistema_se_reinicio_en_el_medio(tmp_path):
+    s, liga, t, llamadas, enviados = armar(tmp_path, _ts("2026-10-15T05:00:00"))
+    os.makedirs(os.path.join(s.cfg["datos"]["carpeta"], "velas"))
+    open(os.path.join(s.cfg["datos"]["carpeta"], "velas", "AAAUSDT_1h.csv.gz"), "w").close()
+    s.cmd_ciclo()
+    assert liga.e["tareas"].get("ciclo_corriendo")
+    # se reinicia el sistema: servicio nuevo con el mismo estado guardado
+    s2 = Servicio(s.cfg, liga, s.mercado, enviados.append, reloj=lambda: t["ahora"],
+                  lanzar_ciclo=lambda: llamadas["ciclos"].append(Proceso()) or llamadas["ciclos"][-1],
+                  actualizar_datos=lambda: Hilo())
+    s2.paso()  # baja datos al prender
+    s2.paso()  # datos listos: retoma el ciclo cortado
+    assert len(llamadas["ciclos"]) == 2 and any("se cortó porque el sistema se reinició" in m for m in enviados)
+    s2._al_terminar_ciclo()
+    assert "ciclo_corriendo" not in liga.e["tareas"]
