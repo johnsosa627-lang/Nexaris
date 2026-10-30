@@ -121,6 +121,11 @@ liga:
   max_suplentes: 30   # todos practican en papel (nunca plata real): más operaciones para aprender y encontrar fallas
   max_titulares_por_moneda: 2   # dos estrategias distintas por moneda, pero nunca dos posiciones a la vez en la misma
   max_suplentes_por_moneda: 4   # así los lugares se reparten entre las 10 monedas (y hay candidatos a titular en todas)
+  # Una 🧪 (filtros flojos) solo es titular si practicando ya gana: al menos estas operaciones en vivo
+  # (simuladas como suplente o como titular) con promedio de R mayor a este valor. Si siendo titular
+  # su promedio cae a 0 o menos, vuelve a suplente y sigue practicando.
+  exploracion_min_ops_titular: 5
+  exploracion_min_r_titular: 0.0
   max_correlacion_suplentes: 0.8   # dos suplentes de la misma moneda y temporalidad más parecidas que esto = repetidas
   # Los titulares no pueden parecerse entre sí más que esto (correlación de resultados diarios)
   max_correlacion: 0.5

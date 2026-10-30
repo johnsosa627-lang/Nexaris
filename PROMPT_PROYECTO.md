@@ -36,6 +36,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Revisión con datos nuevos (cada ciclo):** cada estrategia del banco se prueba en las semanas posteriores a su examen. Si con 10+ operaciones pierde plata, queda "vencida" y no entra a la liga. Las que van mejor entran primero.
 - **Liga:** hasta 8 **titulares** (los que operan; hasta 2 estrategias distintas por moneda pero una sola posición abierta por moneda; nunca más de 3% de riesgo abierto), con correlación menor a 0,5, y **suplentes** que operan en papel. Ascenso con prueba t ≥ 2 y al menos 30 operaciones. **Jubilación automática** si la caída real supera la del Monte Carlo o si rinde mucho peor que en las pruebas.
 - **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y practican en simulado. Solo pueden llegar a plata real si se "gradúan" operando en vivo (30+ operaciones y una prueba estadística t ≥ 2 de que su ganancia no es casualidad), y siempre con el permiso doble.
+- **Titulares 🧪 a prueba:** una 🧪 solo sube a titular si practicando como suplente ya gana (5+ operaciones en vivo con promedio de R positivo). Si siendo titular su promedio cae a 0 o menos, vuelve a suplente y sigue practicando; recupera el lugar si mejora (desde el 30/10/2026, después de una semana de pérdidas en la demo).
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
 
 ## Reglas de riesgo (no se tocan)
@@ -71,7 +72,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 138 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 140 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 
