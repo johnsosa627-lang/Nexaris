@@ -122,6 +122,12 @@ class Servicio:
             t["revision"] = hoy
             self.liga.revisar()
 
+        if self.ciclo_en_curso is None and self.datos_en_curso is None and t.get("ciclo_corriendo"):
+            # había un ciclo andando cuando el sistema se apagó (por ejemplo, una actualización): se perdió
+            self.enviar("🔁 El ciclo de la fábrica que estaba corriendo se cortó porque el sistema se reinició. "
+                        "Lo vuelvo a arrancar solo.")
+            self._arrancar_ciclo()
+
         semana = f"{utc.isocalendar()[0]}-{utc.isocalendar()[1]}"
         banco_vacio = not banco(self.cfg)
         toca_semanal = utc.weekday() == self.S["dia_ciclo_semanal"] and utc.hour >= self.S["hora_ciclo_utc"]
@@ -163,6 +169,9 @@ class Servicio:
         self.enviar("🏭 Arranca un ciclo de la fábrica: inventar, filtrar y examinar estrategias nuevas. "
                     "Te aviso cuando termine.")
         self.ciclo_en_curso = self._lanzar_ciclo()
+        # queda anotado: si el sistema se reinicia en el medio (actualización, caída), al prender lo retoma
+        self.liga.e["tareas"]["ciclo_corriendo"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self.liga.guardar()
 
     def _inventadas_ultimo_ciclo(self) -> int:
         try:
@@ -196,6 +205,7 @@ class Servicio:
 
     def _al_terminar_ciclo(self):
         proceso, self.ciclo_en_curso = self.ciclo_en_curso, None
+        self.liga.e["tareas"].pop("ciclo_corriendo", None)
         codigo = getattr(proceso, "returncode", 0)
         if codigo:  # el ciclo se cortó: lo que muestre /fabrica sería del ciclo anterior
             self.enviar(f"⚠️ El ciclo de la fábrica se cortó con un error (código {codigo}). El detalle quedó en "

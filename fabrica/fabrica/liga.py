@@ -262,6 +262,7 @@ class Liga:
         return True  # stop en ATR: depende del momento; si no alcanza, lo detecta al operar
 
     def completar_titulares(self):
+        self._bajar_titulares_que_pierden()  # también al prender y al terminar un ciclo, no solo en la revisión diaria
         # Primero las que pasaron los filtros estrictos; las de exploración solo si sobra lugar
         candidatos = sorted(self.bots("suplente"), key=lambda b: (b.get("nivel") != "exploracion", b["fitness"]),
                             reverse=True)
