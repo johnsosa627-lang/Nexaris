@@ -271,7 +271,34 @@ class Liga:
                 break
             if self.elegible(bot):
                 self._ascender(bot, "lugar libre en el equipo titular")
+        self._ceder_lugar_a_probadas()
         self.guardar()
+
+    def _r_medio(self, bot) -> float:
+        rs = [t["r"] for t in bot["trades"]]
+        return sum(rs) / len(rs) if rs else 0.0
+
+    def _ceder_lugar_a_probadas(self):
+        """Una 🧪 que ya ganó practicando y no entra por falta de lugar (en su moneda o en el equipo) reemplaza
+        a un titular 🧪 que todavía no demostró nada en vivo."""
+        probadas = sorted((b for b in self.bots("suplente")
+                           if b.get("nivel") == "exploracion" and self.probada_en_practica(b)),
+                          key=self._r_medio, reverse=True)
+        for sup in probadas:
+            sin_probar = sorted((t for t in self.bots("titular") if t.get("nivel") == "exploracion"
+                                 and t["posicion"] is None and not self.probada_en_practica(t)),
+                                key=lambda t: (t["simbolo"] != sup["simbolo"], self._r_medio(t)))
+            for tit in sin_probar:
+                lleno = len(self.bots("titular")) >= self.L["max_titulares"]
+                if tit["simbolo"] != sup["simbolo"] and not lleno:
+                    continue  # hay lugar en el equipo: si no entra es por otra razón (correlación, mínimo de Binance)
+                if self.elegible(sup, excluir=tit["id"]):
+                    tit["rol"] = "suplente"
+                    self.evento(f"🔄 {tit['id']} ({_moneda(tit['simbolo'])} {tit['tf']}) vuelve a suplente: le deja el "
+                                f"lugar a {sup['id']}, que ya gana practicando ({len(sup['trades'])} operaciones, "
+                                f"promedio {self._r_medio(sup):+.2f}R).")
+                    self._ascender(sup, "ya gana practicando y reemplaza a un titular sin resultados todavía")
+                    break
 
     def _ascender(self, bot, motivo):
         bot["rol"] = "titular"
