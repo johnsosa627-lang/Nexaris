@@ -70,6 +70,28 @@ FAMOSAS = [
     {"famosa": "Ruptura del rango de Asia en la apertura de Londres", "lado": "ambos",
      "reglas": [{"tipo": "ruptura_apertura", "sesion": "asia", "m": 480}],
      "salidas": _s("rango", 30, trailing=2.0, max_velas=48)},
+    # Estrategias de traders profesionales conocidos y populares en YouTube (parámetros clásicos de cada autor,
+    # fijados antes de probar). Tienen que pasar los mismos exámenes que todas.
+    {"famosa": "Turtle Soup de Linda Raschke (falsa ruptura del mínimo de 20 velas)", "lado": "ambos",
+     "reglas": [{"tipo": "sopa_tortuga", "n": 20}], "salidas": _s("rango", 5, "atr", 2.0, max_velas=24)},
+    {"famosa": "Double 7s de Larry Connors (cierre más bajo de 7 velas en tendencia alcista)", "lado": "long",
+     "reglas": [{"tipo": "extremo_cierres", "n": 7}, {"tipo": "tendencia", "media": "sma", "n": 200}],
+     "salidas": _s("atr", 3.0, max_velas=48, contraria=True)},
+    {"famosa": "Ruptura del canal de Keltner (Chester Keltner / Linda Raschke)", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_keltner", "n": 20, "k": 2.0}, {"tipo": "adx_filtro", "op": ">", "nivel": 20}],
+     "salidas": _s("atr", 2.0, trailing=3.0)},
+    {"famosa": "Estocástico en sobreventa a favor de la tendencia (George Lane)", "lado": "ambos",
+     "reglas": [{"tipo": "cruce_estocastico", "n": 14, "nivel": 20}, {"tipo": "tendencia", "media": "ema", "n": 200}],
+     "salidas": _s("atr", 1.5, "atr", 3.0, max_velas=48)},
+    {"famosa": "Ruptura de vela interior con tendencia (price action)", "lado": "ambos",
+     "reglas": [{"tipo": "barra_interior"}, {"tipo": "tendencia", "media": "ema", "n": 50}],
+     "salidas": _s("rango", 5, "atr", 3.0, max_velas=48)},
+    {"famosa": "Cruce del VWAP con tendencia (trading intradía)", "lado": "ambos",
+     "reglas": [{"tipo": "cruce_vwap"}, {"tipo": "tendencia", "media": "ema", "n": 50}],
+     "salidas": _s("atr", 1.5, "atr", 3.0, max_velas=24)},
+    {"famosa": "RSI 30/70 con filtro de tendencia (la clásica de los cursos)", "lado": "ambos",
+     "reglas": [{"tipo": "rsi_cruce", "n": 14, "nivel": 30}, {"tipo": "tendencia", "media": "sma", "n": 200}],
+     "salidas": _s("atr", 2.0, "atr", 3.0, max_velas=48)},
 ]
 
 

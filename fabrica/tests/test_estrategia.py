@@ -132,7 +132,7 @@ def test_famosas_validas_y_en_la_poblacion():
         E.senales(ctx, e)
         assert E.describir(e).startswith("[Basada en una estrategia conocida")
         assert "famosa" not in E.mutar(np.random.default_rng(0), e) and "famosa" not in E.perturbar(np.random.default_rng(0), e)
-    arch = evolucionar(Evaluador(v, None, Costos()), np.random.default_rng(1), poblacion=20, generaciones=0,
+    arch = evolucionar(Evaluador(v, None, Costos()), np.random.default_rng(1), poblacion=40, generaciones=0,
                        min_operaciones=10, semillas=famosas())
     assert all(E.identificador(e) in arch for e in lista)
 
@@ -246,3 +246,28 @@ def test_rango_de_asia_y_sin_mirar_el_futuro():
         cc = {"tipo": "ruptura_apertura", "sesion": ses, "m": m}
         corto = E.condicion(E.Contexto(vl.iloc[:1700]), cc, 1)
         assert (corto == E.condicion(E.Contexto(vl), cc, 1)[:1700]).all()
+
+
+def test_piezas_de_traders_conocidos_a_mano():
+    from tests.conftest import velas
+    # Turtle Soup: perfora el mínimo de 10 velas y cierra de vuelta adentro
+    filas = [(10, 10.5, 9.5, 10)] * 12 + [(10, 10.2, 9.0, 9.8)]
+    sopa = E.condicion(E.Contexto(velas(filas)), {"tipo": "sopa_tortuga", "n": 10}, 1)
+    assert sopa[12] and sopa.sum() == 1
+    # Double 7s: el cierre más bajo de 7 velas
+    filas = [(10, 10.5, 9.5, 10 + i * 0.1) for i in range(10)] + [(10, 10.5, 9.0, 9.2)]
+    assert E.condicion(E.Contexto(velas(filas)), {"tipo": "extremo_cierres", "n": 7}, 1)[10]
+    # vela interior y ruptura de su máximo
+    filas = [(10, 12, 8, 10)] * 3 + [(10, 11, 9, 10), (10, 11.5, 9.8, 11.2)]
+    interior = E.condicion(E.Contexto(velas(filas)), {"tipo": "barra_interior"}, 1)
+    assert interior[4] and interior.sum() == 1
+
+
+def test_sin_mirar_el_futuro_piezas_de_traders():
+    v = velas_aleatorias(1200, semilla=13)
+    corto, largo = E.Contexto(v.iloc[:800]), E.Contexto(v)
+    for c in ({"tipo": "sopa_tortuga", "n": 20}, {"tipo": "extremo_cierres", "n": 7},
+              {"tipo": "ruptura_keltner", "n": 20, "k": 2.0}, {"tipo": "cruce_estocastico", "n": 14, "nivel": 20},
+              {"tipo": "barra_interior"}, {"tipo": "cruce_vwap"}):
+        assert (E.condicion(corto, c, 1) == E.condicion(largo, c, 1)[:800]).all()
+        assert (E.condicion(corto, c, -1) == E.condicion(largo, c, -1)[:800]).all()
