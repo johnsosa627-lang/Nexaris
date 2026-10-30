@@ -210,6 +210,8 @@ class Liga:
             return False
         if bot.get("nivel") == "exploracion" and self.modo == "real" and not self.graduado(bot):
             return False  # las de filtros flojos solo van a plata real si se graduaron operando en vivo
+        if bot.get("nivel") == "exploracion" and not self.probada_en_practica(bot):
+            return False  # una 🧪 primero tiene que ganar practicando como suplente
         if bot.get("no_operable") or not self.operable(bot):
             return False  # con este capital no llega al mínimo de Binance: no ocupa un lugar de titular
         titulares = [t for t in self.bots("titular") if t["id"] != excluir]
@@ -221,6 +223,26 @@ class Liga:
                for t in titulares):
             return False
         return not self.debe_jubilarse(bot)[0]
+
+    def probada_en_practica(self, bot) -> bool:
+        """¿Una 🧪 ya mostró en vivo (simulado o no) que gana? Mínimo de operaciones y promedio de R positivo."""
+        rs = [t["r"] for t in bot["trades"]]
+        return (len(rs) >= self.L.get("exploracion_min_ops_titular", 5)
+                and sum(rs) / len(rs) > self.L.get("exploracion_min_r_titular", 0.0))
+
+    def _bajar_titulares_que_pierden(self):
+        """Titulares 🧪 que en vivo pierden en promedio vuelven a suplentes: siguen practicando simulados y
+        recuperan el lugar si mejoran. Así los lugares de titular quedan para las que van ganando."""
+        minimo = self.L.get("exploracion_min_ops_titular", 5)
+        for tit in self.bots("titular"):
+            if tit.get("nivel") != "exploracion" or tit["posicion"] is not None or len(tit["trades"]) < minimo:
+                continue
+            if not self.probada_en_practica(tit):
+                rs = [t["r"] for t in tit["trades"]]
+                tit["rol"] = "suplente"
+                self.evento(f"↩️ {tit['id']} ({_moneda(tit['simbolo'])} {tit['tf']}) vuelve a suplente: en vivo lleva "
+                            f"{len(rs)} operaciones con un promedio de {sum(rs) / len(rs):+.2f}R. Sigue practicando "
+                            f"simulado y vuelve a titular si mejora.")
 
     def operable(self, bot) -> bool:
         """¿Puede operar con el capital actual respetando el riesgo por operación y el mínimo de Binance?"""
@@ -307,6 +329,7 @@ class Liga:
                 self.evento(f"🔄 {tit['id']} vuelve al banco de suplentes: {mejor['id']} fue claramente mejor "
                             f"en vivo (t = {mejor_t:.1f}, con {len(mejor['trades'])} operaciones).")
                 self._ascender(mejor, "fue claramente mejor que el titular que reemplaza")
+        self._bajar_titulares_que_pierden()
         self.completar_titulares()
         self.e["ultima_revision"] = self.hoy()
         self.guardar()

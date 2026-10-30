@@ -338,6 +338,9 @@ def test_estrategias_de_exploracion_nunca_operan_con_plata_real(tmp_path):
         liga = Liga(cfg_prueba(), str(tmp_path / modo), MercadoFalso(), EjecutorFalso(), lambda m: None,
                     reloj=lambda: t["ahora"], modo=modo)
         liga.sincronizar_banco([reg])
+        # ya practicó como suplente y va ganando (sin eso, una 🧪 no sube a titular)
+        liga.e["bots"]["bot1"]["trades"] = [{"r": 1.0, "retorno": 0.01, "pnl_usdt": 0.0,
+                                             "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}] * 5
         liga.completar_titulares()
         assert liga.e["bots"]["bot1"]["rol"] == esperado
     assert "🧪" in liga.texto_bots()
@@ -647,3 +650,21 @@ def test_informe_semanal_no_suma_la_practica_de_un_titular_nuevo(tmp_path):
     assert "Resultado de los titulares en 7 días: +2.00 USDT" in texto
     assert "cuando era suplente" in texto
     assert "1 operaciones en vivo, 1 ganadas" in liga.texto_bots()
+
+
+def test_una_exploracion_sube_a_titular_solo_si_gana_practicando(tmp_path):
+    liga, mensajes, _ = liga_papel(tmp_path)
+    liga.sincronizar_banco([{**registro(1), "nivel": "exploracion"}])
+    bot = liga.e["bots"]["bot1"]
+    liga.completar_titulares()
+    assert bot["rol"] == "suplente"                        # sin práctica todavía
+    tr = lambda r: {"r": r, "retorno": r / 100, "pnl_usdt": r, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}
+    bot["trades"] = [tr(-1.0)] * 3 + [tr(2.0)] * 2          # 5 operaciones, promedio +0.2R
+    liga.completar_titulares()
+    assert bot["rol"] == "titular"
+    bot["trades"] += [tr(-1.0)] * 3                         # ahora pierde en promedio
+    liga.revisar()
+    assert bot["rol"] == "suplente" and any("vuelve a suplente" in m for m in mensajes)
+    bot["trades"] += [tr(3.0)] * 3                          # mejora: recupera el lugar
+    liga.revisar()
+    assert bot["rol"] == "titular"
