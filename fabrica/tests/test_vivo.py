@@ -668,3 +668,17 @@ def test_una_exploracion_sube_a_titular_solo_si_gana_practicando(tmp_path):
     bot["trades"] += [tr(3.0)] * 3                          # mejora: recupera el lugar
     liga.revisar()
     assert bot["rol"] == "titular"
+
+
+def test_una_probada_reemplaza_a_un_titular_sin_resultados_de_su_moneda(tmp_path):
+    liga, mensajes, _ = liga_papel(tmp_path, cfg_prueba(max_titulares_por_moneda=1))
+    tr = lambda r: {"r": r, "retorno": r / 100, "pnl_usdt": r, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}
+    viejo = {**distinta(1), "nivel": "exploracion"}
+    nuevo = {**distinta(2), "nivel": "exploracion"}
+    liga.sincronizar_banco([viejo, nuevo])
+    a, b = liga.e["bots"]["bot1"], liga.e["bots"]["bot2"]
+    a["rol"], a["trades"] = "titular", [tr(-1.0)]           # subió antes de la regla: 1 operación perdida
+    b["trades"] = [tr(1.0)] * 3 + [tr(-1.0)] * 2           # 5 operaciones, ganando
+    liga.completar_titulares()
+    assert b["rol"] == "titular" and a["rol"] == "suplente"
+    assert any("le deja el lugar" in m for m in mensajes)
