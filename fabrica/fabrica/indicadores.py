@@ -98,3 +98,17 @@ def ichimoku_nube(high: pd.Series, low: pd.Series, t: int = 9, k: int = 26, s: i
     a = ((tenkan + kijun) / 2).shift(k)
     b = ((high.rolling(s).max() + low.rolling(s).min()) / 2).shift(k)
     return pd.concat([a, b], axis=1).max(axis=1, skipna=False), pd.concat([a, b], axis=1).min(axis=1, skipna=False)
+
+
+def estocastico(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14, d: int = 3):
+    """Estocástico lento: %K (dónde cerró dentro del rango de n velas, 0-100) y %D (su media de d velas)."""
+    bajo, alto = low.rolling(n).min(), high.rolling(n).max()
+    k = 100 * (close - bajo) / (alto - bajo).replace(0, np.nan)
+    return k, k.rolling(d).mean()
+
+
+def vwap_diario(high: pd.Series, low: pd.Series, close: pd.Series, volumen: pd.Series, ts: pd.Series) -> pd.Series:
+    """Precio promedio ponderado por volumen desde las 0 h UTC de cada día (se reinicia cada día)."""
+    tipico = (high + low + close) / 3
+    dia = (ts.astype("int64") // 86_400_000)
+    return (tipico * volumen).groupby(dia).cumsum() / volumen.groupby(dia).cumsum().replace(0, np.nan)

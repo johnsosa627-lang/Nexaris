@@ -45,9 +45,15 @@ SESIONES = {
 }
 VENTANA_APERTURA_MIN = 240                 # se busca la ruptura en las 4 horas siguientes al rango
 RANGO_ANCHO = [3.0, 4.0, 6.0]              # alto máximo del rango, en ATR (más chico = más quieto)
+# Piezas de traders conocidos (profesionales y populares en YouTube)
+SOPA_N = [10, 20, 55]                      # Turtle Soup (Linda Raschke): falsa ruptura del mínimo de n velas
+EXTREMO_N = [5, 7, 10]                     # Double 7s (Larry Connors): cierre más bajo de las últimas n velas
+KELTNER = [(20, 1.5), (20, 2.0), (50, 2.0)]  # (media, multiplicador de ATR)
+ESTOCASTICO = [(14, 20), (14, 30), (5, 20)]  # (velas, nivel de sobreventa)
 
 DISPARADORES = ["cruce_medias", "cruce_precio_media", "cruce_macd", "ruptura_donchian", "rebote_bollinger", "rsi_cruce",
-                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube", "ruptura_rango", "ruptura_apertura"]
+                "retroceso_rsi", "ruptura_compresion", "cambio_supertrend", "ruptura_nube", "ruptura_rango", "ruptura_apertura",
+                "sopa_tortuga", "extremo_cierres", "ruptura_keltner", "cruce_estocastico", "barra_interior", "cruce_vwap"]
 FILTROS = ["tendencia", "rsi_filtro", "adx_filtro", "volumen_filtro", "di_filtro",
            "funding_filtro", "btc_tendencia", "miedo_codicia", "horario", "volatilidad"]
 # Datos de afuera del gráfico: la fábrica los prueba igual que todo; si no sirven, los descarta
@@ -126,6 +132,18 @@ class Contexto:
             self._cache[("ap_alto",) + k[1:]], self._cache[("ap_bajo",) + k[1:]] = alto, bajo
             self._cache[("ap_ventana",) + k[1:]] = ventana
             return {"ap_alto": alto, "ap_bajo": bajo, "ap_ventana": ventana}[t]
+        if t in ("kelts", "kelti"):  # canal de Keltner: media exponencial ± k ATR
+            media, banda = ind.ema(self.c, k[1]), self.ind("atr", k[1]) * k[2]
+            self._cache[("kelts",) + k[1:]], self._cache[("kelti",) + k[1:]] = media + banda, media - banda
+            return self._cache[(t,) + k[1:]]
+        if t in ("stk", "std"):
+            kk, dd = ind.estocastico(self.h, self.l, self.c, k[1])
+            self._cache[("stk", k[1])], self._cache[("std", k[1])] = kk, dd
+            return kk if t == "stk" else dd
+        if t == "vwap":
+            if "ts" not in self.velas:
+                return pd.Series(np.full(len(self.velas), np.nan))
+            return ind.vwap_diario(self.h, self.l, self.c, self.v, self.velas["ts"])
         if t == "hora":
             ts = self.velas["ts"] if "ts" in self.velas else pd.Series(np.full(len(self.velas), np.nan))
             return (ts // 3_600_000) % 24
@@ -223,6 +241,31 @@ def condicion(ctx: Contexto, cond: dict, lado: int) -> np.ndarray:
         p = (cond["sesion"], cond["m"])
         nivel = ctx.ind("ap_alto", *p) if lado == 1 else ctx.ind("ap_bajo", *p)
         return ctx.ind("ap_ventana", *p) & cruza(ctx.c, nivel)
+    if t == "sopa_tortuga":  # perfora el mínimo de n velas y cierra de vuelta adentro (falsa ruptura)
+        if lado == 1:
+            nivel = ctx.ind("dcl", cond["n"])
+            return ((ctx.l < nivel) & (ctx.c > nivel)).to_numpy()
+        nivel = ctx.ind("dch", cond["n"])
+        return ((ctx.h > nivel) & (ctx.c < nivel)).to_numpy()
+    if t == "extremo_cierres":  # el cierre más bajo de las últimas n velas (espejo: el más alto)
+        if lado == 1:
+            return (ctx.c <= ctx.c.rolling(cond["n"]).min()).to_numpy()
+        return (ctx.c >= ctx.c.rolling(cond["n"]).max()).to_numpy()
+    if t == "ruptura_keltner":
+        p = (cond["n"], cond["k"])
+        return cruza(ctx.c, ctx.ind("kelts", *p) if lado == 1 else ctx.ind("kelti", *p))
+    if t == "cruce_estocastico":  # %K cruza su %D estando en sobreventa (espejo: en sobrecompra)
+        kk, dd = ctx.ind("stk", cond["n"]), ctx.ind("std", cond["n"])
+        if lado == 1:
+            return _cruza_arriba(kk, dd) & (kk.shift(1) < cond["nivel"]).to_numpy()
+        return _cruza_abajo(kk, dd) & (kk.shift(1) > 100 - cond["nivel"]).to_numpy()
+    if t == "barra_interior":  # vela "adentro" de la anterior y ruptura de su máximo (espejo: de su mínimo)
+        adentro = ((ctx.h.shift(1) < ctx.h.shift(2)) & (ctx.l.shift(1) > ctx.l.shift(2))).to_numpy()
+        if lado == 1:
+            return adentro & (ctx.c > ctx.h.shift(1)).to_numpy()
+        return adentro & (ctx.c < ctx.l.shift(1)).to_numpy()
+    if t == "cruce_vwap":  # el precio cruza el VWAP del día (precio promedio ponderado por volumen)
+        return cruza(ctx.c, ctx.ind("vwap"))
     if t == "horario":  # simétrico: solo opera en ese tramo del día
         desde, hasta = HORAS[cond["tramo"]]
         h = ctx.ind("hora")
@@ -318,6 +361,18 @@ def condicion_aleatoria(rng, tipo: str) -> dict:
     if tipo == "ruptura_apertura":
         sesion = _elegir(rng, list(SESIONES))
         return {"tipo": tipo, "sesion": sesion, "m": _elegir(rng, SESIONES[sesion]["minutos"])}
+    if tipo == "sopa_tortuga":
+        return {"tipo": tipo, "n": _elegir(rng, SOPA_N)}
+    if tipo == "extremo_cierres":
+        return {"tipo": tipo, "n": _elegir(rng, EXTREMO_N)}
+    if tipo == "ruptura_keltner":
+        n, k = _elegir(rng, KELTNER)
+        return {"tipo": tipo, "n": n, "k": k}
+    if tipo == "cruce_estocastico":
+        n, nivel = _elegir(rng, ESTOCASTICO)
+        return {"tipo": tipo, "n": n, "nivel": nivel}
+    if tipo in ("barra_interior", "cruce_vwap"):
+        return {"tipo": tipo}
     if tipo == "horario":
         return {"tipo": tipo, "tramo": _elegir(rng, HORARIOS)}
     if tipo == "volatilidad":
@@ -428,6 +483,14 @@ def _mover_condicion(rng, cond: dict) -> dict:
         c[clave] = _vecino(rng, RANGO_N if clave == "n" else RANGO_ANCHO, c[clave])
     elif t == "ruptura_apertura":
         c["m"] = _vecino(rng, SESIONES[c["sesion"]]["minutos"], c["m"])
+    elif t == "sopa_tortuga":
+        c["n"] = _vecino(rng, SOPA_N, c["n"])
+    elif t == "extremo_cierres":
+        c["n"] = _vecino(rng, EXTREMO_N, c["n"])
+    elif t == "ruptura_keltner":
+        c["n"], c["k"] = _vecino(rng, KELTNER, (c["n"], c["k"]))
+    elif t == "cruce_estocastico":
+        c["n"], c["nivel"] = _vecino(rng, ESTOCASTICO, (c["n"], c["nivel"]))
     elif t == "horario":
         c["tramo"] = _vecino(rng, HORARIOS, c["tramo"])
     elif t == "volatilidad":
@@ -453,7 +516,7 @@ def _mover_salidas(rng, s: dict) -> dict:
 
 def _movible(c: dict) -> bool:
     """¿Tiene algún número que se pueda mover al valor vecino?"""
-    if c["tipo"] == "di_filtro":
+    if c["tipo"] in ("di_filtro", "barra_interior", "cruce_vwap"):
         return False
     if c["tipo"] == "ruptura_apertura":
         return len(SESIONES[c["sesion"]]["minutos"]) > 1
@@ -554,6 +617,20 @@ def describir_condicion(c: dict) -> str:
         plaza = {"nueva_york": "Nueva York (9:30)", "londres": "Londres (8:00)"}[c["sesion"]]
         return (f"el precio rompe por arriba el máximo de los primeros {c['m']} minutos de la apertura de {plaza}, "
                 f"en las 4 horas siguientes")
+    if t == "sopa_tortuga":
+        return (f"el precio perfora el mínimo de las últimas {c['n']} velas pero cierra de vuelta por encima "
+                f"(falsa ruptura, \"Turtle Soup\" de Linda Raschke)")
+    if t == "extremo_cierres":
+        return f"el precio cierra en su nivel más bajo de las últimas {c['n']} velas"
+    if t == "ruptura_keltner":
+        return f"el precio rompe por arriba el canal de Keltner ({c['n']} velas, {c['k']} ATR)"
+    if t == "cruce_estocastico":
+        return (f"el estocástico ({c['n']}) cruza hacia arriba su línea de señal estando en sobreventa "
+                f"(por debajo de {c['nivel']})")
+    if t == "barra_interior":
+        return "después de una vela \"interior\" (más chica y adentro de la anterior), el precio rompe su máximo"
+    if t == "cruce_vwap":
+        return "el precio cruza hacia arriba el VWAP del día (precio promedio ponderado por volumen)"
     if t == "horario":
         desde, hasta = HORAS[c["tramo"]]
         return f"es horario de {c['tramo'].capitalize()} ({desde} a {hasta} h UTC)"
