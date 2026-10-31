@@ -208,8 +208,9 @@ class Servicio:
         self.liga.e["tareas"].pop("ciclo_corriendo", None)
         codigo = getattr(proceso, "returncode", 0)
         if codigo:  # el ciclo se cortó: lo que muestre /fabrica sería del ciclo anterior
-            self.enviar(f"⚠️ El ciclo de la fábrica se cortó con un error (código {codigo}). El detalle quedó en "
-                        "ultimo_ciclo.log. Se vuelve a intentar en el próximo turno; también podés mandar /ciclo.")
+            self.enviar(f"⚠️ El ciclo de la fábrica se cortó con un error (código {codigo}). "
+                        "Se vuelve a intentar en el próximo turno; también podés mandar /ciclo.\n\n"
+                        f"Detalle (mandale una foto de esto a quien te ayuda con el sistema):\n{self._error_del_ciclo()}")
             return
         if self._inventadas_ultimo_ciclo() > 0:
             self.liga.e["tareas"]["primer_ciclo_ok"] = True
@@ -220,6 +221,16 @@ class Servicio:
         self.liga.completar_titulares()
         self.enviar(self.resumen_fabrica() + f"\n\nSe sumaron {len(nuevos)} suplente(s) nuevos a la liga.")
         self.enviar(self.liga.texto_semana() + "\n\n" + self.liga.texto_preparacion())
+
+    def _error_del_ciclo(self) -> str:
+        """Las últimas líneas del registro del ciclo (donde está el error), para verlas desde Telegram."""
+        try:
+            with open(os.path.join(self.liga.carpeta, "ultimo_ciclo.log"), encoding="utf-8", errors="replace") as f:
+                lineas = [l.rstrip() for l in f if l.strip()]
+        except OSError:
+            return "(no encontré el registro del ciclo)"
+        inicio = max((i for i, l in enumerate(lineas) if l.startswith("Traceback")), default=max(0, len(lineas) - 8))
+        return "\n".join(lineas[inicio:][-12:])[-1500:]
 
     def _ciclo_en_subproceso(self):
         carpeta_log = self.liga.carpeta
