@@ -77,3 +77,23 @@ def test_exploracion_aprueba_con_filtros_flojos_y_las_marca(tmp_path):
     registros = [json.load(open(p, encoding="utf-8")) for p in glob.glob(os.path.join(flojo["carpeta"], "aprobadas", "*.json"))]
     assert registros and all(r["nivel"] == "exploracion" for r in registros)
     assert all(r["montecarlo"] and r["antisuerte"] for r in registros)
+
+
+def test_las_ganadoras_en_vivo_entran_como_semillas(tmp_path):
+    import json as _json
+    from fabrica.ciclo import ganadoras_en_vivo
+    est = {"lado": "long", "reglas": [{"tipo": "ruptura_donchian", "n": 20}],
+           "salidas": {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "ninguno", "tp": 0.0, "trailing": 3.0, "max_velas": 0}}
+    tr = lambda r: {"r": r}
+    bots = {"gana": {"id": "gana", "rol": "suplente", "simbolo": "XRP/USDT:USDT", "tf": "1h", "estrategia": est,
+                     "trades": [tr(1.0)] * 3 + [tr(-1.0)] * 2},
+            "pierde": {"id": "pierde", "rol": "titular", "simbolo": "SOL/USDT:USDT", "tf": "1h", "estrategia": est,
+                       "trades": [tr(-1.0)] * 5},
+            "pocas": {"id": "pocas", "rol": "suplente", "simbolo": "ADA/USDT:USDT", "tf": "1h", "estrategia": est,
+                      "trades": [tr(3.0)] * 2},
+            "jubilado": {"id": "jubilado", "rol": "jubilado", "simbolo": "BNB/USDT:USDT", "tf": "1h", "estrategia": est,
+                         "trades": [tr(2.0)] * 9}}
+    (tmp_path / "estado_liga.json").write_text(_json.dumps({"bots": bots}))
+    semillas = ganadoras_en_vivo(str(tmp_path))
+    assert len(semillas) == 1 and "gana" in semillas[0]["famosa"] and semillas[0]["reglas"] == est["reglas"]
+    assert ganadoras_en_vivo(str(tmp_path / "no_existe")) == []

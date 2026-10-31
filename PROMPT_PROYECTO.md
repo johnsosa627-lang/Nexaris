@@ -23,7 +23,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
   - Disparadores: cruce de medias, precio cruza media, MACD, ruptura Donchian, rebote Bollinger, cruce de RSI, retroceso RSI-2/3, ruptura tras compresión de Bollinger, cambio de Supertrend, ruptura de la nube de Ichimoku y ruptura de consolidación (rango angosto que se rompe) y ruptura de apertura de sesión (ORB de Nueva York 9:30, Londres 8:00 y rango de Asia), Turtle Soup (falsa ruptura, Linda Raschke), cierre extremo de n velas (Double 7s, Larry Connors), ruptura del canal de Keltner, cruce del estocástico en sobreventa, ruptura de vela interior (price action) y cruce del VWAP del día.
   - Salidas: stop por %, por ATR o por "rango" (debajo del mínimo de las últimas N velas), toma de ganancia, stop móvil, salida por tiempo y salida opcional por señal contraria.
   - Filtros: tendencia, RSI, ADX, volumen, +DI/-DI, funding, tendencia de BTC, miedo/codicia, horario (Asia/Europa/América) y volatilidad (ATR relativo).
-- **Estrategias famosas como semillas** (`fabrica/famosas.py`): Tortugas 20 y 55, cruce dorado 50/200, RSI-2 de Connors, MACD + EMA200, Bollinger Squeeze, rebote Bollinger con ADX bajo (estilo Freqtrade), Supertrend 10/3, nube de Ichimoku, EMA 8/21 + RSI, Turtle Soup, Double 7s, Keltner, estocástico con tendencia, vela interior, VWAP, RSI 30/70 con tendencia y 4 variantes de "ruptura de consolidación" (sin filtro, con tendencia, con expansión de ATR, con BTC), con parámetros fijados antes de probar. Entran en cada ciclo y tienen que pasar los mismos exámenes.
+- **Estrategias famosas como semillas** (`fabrica/famosas.py`): Tortugas 20 y 55, cruce dorado 50/200, RSI-2 de Connors, MACD + EMA200, Bollinger Squeeze, rebote Bollinger con ADX bajo (estilo Freqtrade), Supertrend 10/3, nube de Ichimoku, EMA 8/21 + RSI, Turtle Soup, Double 7s, Keltner, estocástico con tendencia, vela interior, VWAP, RSI 30/70 con tendencia y 4 variantes de "ruptura de consolidación" (sin filtro, con tendencia, con expansión de ATR, con BTC), con parámetros fijados antes de probar. Entran en cada ciclo y tienen que pasar los mismos exámenes. Además, en cada ciclo entran como semillas las estrategias de la liga que **van ganando en vivo** (5+ operaciones con promedio positivo): la fábrica busca variantes parecidas a lo que funciona hoy.
 - **7 filtros (el colador):**
   1. métricas mínimas;
   2. fuera de muestra + walk-forward;
@@ -72,7 +72,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 145 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 146 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 
@@ -89,7 +89,6 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Salidas parciales:** cerrar la mitad en ganancia y dejar correr el resto.
 - **"Te pruebo tu estrategia":** vender por Telegram informes del probador anti-suerte para la estrategia que pida el cliente (sin manejar plata ni claves de nadie; consultar con un contador antes de cobrar).
 - **Oro, Nasdaq y acciones:** necesitan años de historia y otro bróker para acciones.
-- **Usar a los bots que ganan en vivo como semillas** de la fábrica.
 
 ## Reglas para la IA que me ayude
 

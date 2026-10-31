@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from .config import cargar_config
+from .config import RAIZ, cargar_config
 from .datos import (SIMBOLO_LIDER, alinear_funding, cargar_funding, cargar_miedo_codicia, cargar_velas,
                     dividir_examen, externos_para)
 from .estrategia import describir
@@ -64,10 +64,32 @@ class Mercado:
                          self.externos(simbolo, tf))
 
 
+def ganadoras_en_vivo(carpeta_vivo=None, minimo=5, maximo=10) -> list:
+    """Estrategias de la liga que en vivo van ganando (5+ operaciones, promedio de R positivo).
+
+    Entran como semillas: la fábrica busca variantes parecidas a lo que funciona HOY en el mercado.
+    Igual tienen que pasar todos los filtros y el examen (y si ya rindieron examen no se repiten)."""
+    ruta = os.path.join(carpeta_vivo or os.getenv("FABRICA_VIVO") or str(RAIZ / "vivo"), "estado_liga.json")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            bots = json.load(f).get("bots", {}).values()
+    except (OSError, ValueError):
+        return []
+    elegidas = []
+    for b in bots:
+        rs = [t["r"] for t in b.get("trades") or []]
+        if b.get("rol") in ("titular", "suplente") and len(rs) >= minimo and sum(rs) / len(rs) > 0:
+            est = {k: copy.deepcopy(b["estrategia"][k]) for k in ("lado", "reglas", "salidas")}
+            est["famosa"] = f"ganadora en vivo: {b['id']} ({b['simbolo'].split('/')[0]} {b['tf']}, " \
+                            f"{len(rs)} operaciones, promedio {sum(rs) / len(rs):+.2f}R)"
+            elegidas.append((sum(rs) / len(rs), est))
+    return [e for _, e in sorted(elegidas, key=lambda x: -x[0])[:maximo]]
+
+
 def _parametros_generador(g, min_ops):
     return dict(poblacion=g["poblacion"], generaciones=g["generaciones"], elite_pct=g["elite_pct"],
                 prob_cruce=g["prob_cruce"], prob_mutacion=g["prob_mutacion"], max_filtros=g["max_filtros"],
-                min_operaciones=min_ops, semillas=famosas(),
+                min_operaciones=min_ops, semillas=ganadoras_en_vivo() + famosas(),
                 objetivo_anual=g.get("operaciones_por_anio_objetivo", 150))  # también en la prueba anti-suerte: misma búsqueda
 
 
