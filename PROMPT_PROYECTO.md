@@ -82,6 +82,14 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 3. Solo si gana de forma constante y el examen de graduación está todo en ✅: pasar a plata real con 100 USD, con permiso doble.
 4. Opcional, por seguridad: cambiar el token del bot en BotFather y la contraseña de Easypanel (estuvieron visibles en fotos).
 
+## Plan acordado (31/10/2026): de la demo a la cuenta de fondeo
+
+1. **Ahora (2–4 semanas):** que la liga encuentre 2–3 bots graduados (30+ operaciones en vivo ganando, prueba t ≥ 2) en la demo de Binance.
+2. **Plata real chica (1–2 meses):** 50–100 USD con los mismos frenos, para confirmar que con plata real gana igual que en la demo.
+3. **Cuenta de fondeo (FTMO u otra que permita bots y cripto):** adaptar frenos a sus reglas (−5% diario, −10% total) y conectar a su plataforma.
+4. **Crecer:** más cuentas de fondeo y quizás el servicio de "probador de estrategias".
+No saltear etapas. Si los datos dicen que no gana, decirlo claro y buscar otro camino.
+
 ## Ideas guardadas para más adelante (no ahora)
 
 - **FTMO / MetaTrader** (opción si lo nuestro no funciona en Binance, o para operar más capital): examen pago, reglas de −5% diario y −10% total (parecidas a nuestros frenos; habría que poner el freno total en −10%), bots en MetaTrader 5 (su conexión con Python necesita Windows) y la fábrica aprendiendo con datos de forex/oro.
