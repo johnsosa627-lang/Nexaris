@@ -10,7 +10,8 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime, timezone
 
 import numpy as np
@@ -211,10 +212,42 @@ def _registro(cand, simbolo, tf, corte_examen, pasos, nivel="estricto"):
     })
 
 
+def _fallido(simbolo, tf, motivo) -> dict:
+    return {"simbolo": simbolo, "tf": tf, "embudo": {}, "aprobadas": [], "descartes": [], "error": motivo}
+
+
 def _trabajo(args):
+    """Una moneda/temporalidad. Si falla, queda anotado el motivo y el resto del ciclo sigue."""
     cfg, simbolo, tf, semilla = args
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(message)s")
-    return procesar_combo(cfg, simbolo, tf, semilla)
+    try:
+        return procesar_combo(cfg, simbolo, tf, semilla)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Falló %s %s", simbolo, tf)
+        return _fallido(simbolo, tf, f"{type(e).__name__}: {str(e)[:200]}")
+
+
+def _en_paralelo(tareas, procesos) -> list:
+    """Corre las tareas en procesos separados (uno nuevo por tarea: libera la memoria al terminar cada una).
+    Si un proceso muere (por ejemplo, el servidor se quedó sin memoria), esa tarea queda como fallida y las
+    que faltan se corren de a una."""
+    resultados = {}
+    try:
+        with ProcessPoolExecutor(max_workers=min(procesos, len(tareas)), max_tasks_per_child=1) as pool:
+            futuros = {pool.submit(_trabajo, t): i for i, t in enumerate(tareas)}
+            for fut in as_completed(futuros):
+                resultados[futuros[fut]] = fut.result()
+    except BrokenProcessPool:
+        log.error("Un proceso del ciclo se cortó (posible falta de memoria): sigo de a una tarea")
+    for i, t in enumerate(tareas):
+        if i in resultados:
+            continue
+        try:
+            with ProcessPoolExecutor(max_workers=1) as pool:
+                resultados[i] = pool.submit(_trabajo, t).result()
+        except BrokenProcessPool:
+            resultados[i] = _fallido(t[1], t[2], "el proceso se cortó (posible falta de memoria del servidor)")
+    return [resultados[i] for i in range(len(tareas))]
 
 
 def ciclo(cfg: dict, simbolos=None, tfs=None, procesos=None) -> dict:
@@ -230,10 +263,9 @@ def ciclo(cfg: dict, simbolos=None, tfs=None, procesos=None) -> dict:
     cfg = {**cfg, "_examinadas": sorted(ya_examinadas(cfg))}
     tareas = [(cfg, s, t, sem) for _, s, t, sem in tareas]
     if procesos > 1 and len(tareas) > 1:
-        with ProcessPoolExecutor(max_workers=min(procesos, len(tareas))) as pool:
-            resultados = list(pool.map(_trabajo, tareas))
+        resultados = _en_paralelo(tareas, procesos)
     else:
-        resultados = [procesar_combo(*t) for t in tareas]
+        resultados = [_trabajo(t) for t in tareas]
     resumen = guardar_ciclo(cfg, resultados, inicio, semilla)
     if cfg.get("examen", {}).get("automatico", True):
         from .informes import informe_ciclo

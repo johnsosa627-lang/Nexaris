@@ -97,3 +97,19 @@ def test_las_ganadoras_en_vivo_entran_como_semillas(tmp_path):
     semillas = ganadoras_en_vivo(str(tmp_path))
     assert len(semillas) == 1 and "gana" in semillas[0]["famosa"] and semillas[0]["reglas"] == est["reglas"]
     assert ganadoras_en_vivo(str(tmp_path / "no_existe")) == []
+
+
+def test_si_una_moneda_falla_el_ciclo_sigue(tmp_path, monkeypatch):
+    from fabrica import ciclo as C
+    cfg = _cfg(tmp_path, 0.0)
+    original = C.procesar_combo
+
+    def roto(cfg_, simbolo, tf, semilla):
+        if simbolo == "BBB/USDT:USDT":
+            raise MemoryError("sin memoria")
+        return original(cfg_, simbolo, tf, semilla)
+    monkeypatch.setattr(C, "procesar_combo", roto)
+    r = C.ciclo(cfg, simbolos=["AAA/USDT:USDT", "BBB/USDT:USDT"], tfs=["4h"], procesos=1)
+    errores = {m["simbolo"]: m["error"] for m in r["por_mercado"]}
+    assert errores["BBB/USDT:USDT"].startswith("MemoryError") and errores["AAA/USDT:USDT"] is None
+    assert r["embudo"]["inventadas"] > 0

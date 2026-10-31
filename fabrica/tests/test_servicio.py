@@ -201,6 +201,12 @@ def test_avisa_enseguida_si_el_ciclo_sale_vacio_o_se_corta(tmp_path):
     n = len(enviados)
     s._al_terminar_ciclo()
     assert len(enviados) == n + 1 and "se cortó con un error" in enviados[-1]
+    # el detalle del error llega por Telegram (sin tener que entrar a la consola)
+    with open(os.path.join(liga.carpeta, "ultimo_ciclo.log"), "w") as f:
+        f.write("12:00 | Ciclo arrancado\nTraceback (most recent call last):\n  File x\nKeyError: 'por_temporalidad'\n")
+    s.ciclo_en_curso = p
+    s._al_terminar_ciclo()
+    assert "Traceback" in enviados[-1] and "KeyError: 'por_temporalidad'" in enviados[-1]
 
 
 def test_token_de_telegram_con_texto_de_mas():
