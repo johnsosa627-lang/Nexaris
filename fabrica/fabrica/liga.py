@@ -155,6 +155,12 @@ class Liga:
             return False
         if a["estrategia"].get("reglas") == b["estrategia"].get("reglas"):
             return True
+        # en vivo hacen lo mismo: entran juntas (mismo lado y precio) en casi todas sus operaciones
+        ea = {(t.get("lado"), round(float(t.get("entrada", 0)), 8)) for t in a.get("trades") or []}
+        eb = {(t.get("lado"), round(float(t.get("entrada", 0)), 8)) for t in b.get("trades") or []}
+        comunes = len(ea & eb)
+        if comunes >= 2 and comunes >= 0.8 * min(len(ea), len(eb)):
+            return True
         umbral = self.L.get("max_correlacion_suplentes", 0.8)
         return C.correlacion(a.get("retornos_diarios") or {}, b.get("retornos_diarios") or {}) >= umbral
 

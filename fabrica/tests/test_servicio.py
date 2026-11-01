@@ -267,3 +267,21 @@ def test_no_repite_el_ciclo_semanal_si_hubo_uno_a_mano(tmp_path):
     s.paso()
     s.paso()
     assert llamadas["ciclos"] == []      # no arranca otro ciclo semanal enseguida
+
+
+def test_fabrica_muestra_las_estrategias_conocidas_que_aprobaron(tmp_path):
+    s, liga, t, llamadas, enviados = armar(tmp_path, _ts("2026-11-01T05:00:00"))
+    carpeta = os.path.join(s.cfg["salida"]["carpeta"], "ciclo_x")
+    os.makedirs(os.path.join(carpeta, "aprobadas"))
+    with open(os.path.join(carpeta, "embudo.json"), "w") as f:
+        json.dump({"embudo": _embudo(100)}, f)
+    for i, (famosa, ok) in enumerate([("Turtle Soup de Linda Raschke", True), ("Supertrend (10, 3)", False), (None, True)]):
+        est = {"lado": "ambos", "reglas": [], "salidas": {}}
+        if famosa:
+            est["famosa"] = famosa
+        with open(os.path.join(carpeta, "aprobadas", f"{i}.json"), "w") as f:
+            json.dump({"simbolo": "XRP/USDT:USDT", "tf": "1h", "estrategia": est, "examen": {"aprobada": ok}}, f)
+    with open(os.path.join(s.cfg["salida"]["carpeta"], "ultimo_ciclo.txt"), "w") as f:
+        f.write("ciclo_x")
+    texto = s.resumen_fabrica()
+    assert "⭐ Turtle Soup de Linda Raschke (XRP 1h)" in texto and "Supertrend" not in texto
