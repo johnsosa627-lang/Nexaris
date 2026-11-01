@@ -256,3 +256,14 @@ def test_sugiere_el_comando_si_hay_error_de_tipeo():
     assert enviados[-1].startswith("¿Quisiste decir /ciclo?")
     tg.procesar({"message": {"chat": {"id": 1}, "text": "/xyz"}})
     assert enviados[-1].startswith("Comandos:")
+
+
+def test_no_repite_el_ciclo_semanal_si_hubo_uno_a_mano(tmp_path):
+    s, liga, t, llamadas, enviados = armar(tmp_path, _ts("2026-11-01T02:00:00"))  # domingo, antes de las 3 UTC
+    liga.e["tareas"]["primer_ciclo_ok"] = True
+    s.ciclo_en_curso = Proceso()
+    s._al_terminar_ciclo()               # terminó un /ciclo a mano
+    t["ahora"] = _ts("2026-11-01T05:00:00")
+    s.paso()
+    s.paso()
+    assert llamadas["ciclos"] == []      # no arranca otro ciclo semanal enseguida
