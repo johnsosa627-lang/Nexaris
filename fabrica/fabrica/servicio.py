@@ -274,15 +274,40 @@ class Servicio:
                 renglones = [l.strip() for l in f]
             aprobaron = next((l for l in renglones if l.startswith("Examen final")), "")
             revision = next((l for l in renglones if l.startswith("Revisión con datos nuevos")), "")
+        conocidas = self._conocidas_aprobadas(carpeta)
         lineas = [f"🏭 Último ciclo de la fábrica ({os.path.basename(carpeta)}):",
                   f"Inventó {e['inventadas']} estrategias; {e['candidatas']} pasaron al colador.",
                   f"Pasaron cada filtro: " + " → ".join(str(e[k]) for k in sorted(e) if k[0].isdigit()), aprobaron,
-                  revision,
+                  revision, conocidas,
                   f"Banco total: {len(banco(self.cfg))} estrategias listas.",
                   "Ciclo en curso ahora." if self.ciclo_en_curso else
                   f"Próximo ciclo: el {['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][self.S['dia_ciclo_semanal']]} "
                   f"a las {self.S['hora_ciclo_utc']}:00 UTC."]
         return "\n".join(l for l in lineas if l)
+
+    @staticmethod
+    def _conocidas_aprobadas(carpeta) -> str:
+        """Qué estrategias famosas (o ganadoras en vivo) aprobaron el examen en ese ciclo, tal cual o mejoradas."""
+        tal_cual, total = [], 0
+        ruta = os.path.join(carpeta, "aprobadas")
+        for nombre in sorted(os.listdir(ruta)) if os.path.isdir(ruta) else []:
+            try:
+                with open(os.path.join(ruta, nombre), encoding="utf-8") as f:
+                    reg = json.load(f)
+            except (OSError, ValueError):
+                continue
+            if not (reg.get("examen") or {}).get("aprobada"):
+                continue
+            total += 1
+            famosa = (reg.get("estrategia") or {}).get("famosa")
+            if famosa:
+                tal_cual.append(f"  ⭐ {famosa} ({reg['simbolo'].split('/')[0]} {reg['tf']})")
+        if not total:
+            return ""
+        if not tal_cual:
+            return ("Estrategias conocidas que aprobaron tal cual: ninguna (las aprobadas son inventadas o "
+                    "versiones mezcladas/mejoradas).")
+        return "Estrategias conocidas que aprobaron tal cual:\n" + "\n".join(tal_cual[:8])
 
     # ------------------------------------------------------------------ comandos
     def registrar_comandos(self, tg):

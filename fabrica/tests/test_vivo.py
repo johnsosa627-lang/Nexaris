@@ -682,3 +682,14 @@ def test_una_probada_reemplaza_a_un_titular_sin_resultados_de_su_moneda(tmp_path
     liga.completar_titulares()
     assert b["rol"] == "titular" and a["rol"] == "suplente"
     assert any("le deja el lugar" in m for m in mensajes)
+
+
+def test_suplentes_que_en_vivo_entran_juntas_cuentan_como_repetidas(tmp_path):
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=0))
+    liga.sincronizar_banco([distinta(1), distinta(2), distinta(3)])
+    tr = lambda entrada, r: {"lado": 1, "entrada": entrada, "r": r, "fecha": "2023-11-14T00:00:00+00:00", "rol": "suplente"}
+    liga.e["bots"]["bot1"]["trades"] = [tr(100.0, 1.0), tr(105.0, -1.0), tr(99.0, 2.0)]
+    liga.e["bots"]["bot2"]["trades"] = [tr(100.0, 1.0), tr(105.0, -1.0)]          # mismas entradas que bot1
+    liga.e["bots"]["bot3"]["trades"] = [tr(100.0, 1.0), tr(120.0, 1.0), tr(130.0, -1.0)]  # solo 1 en común
+    liga.sincronizar_banco([])
+    assert "bot2" not in liga.e["bots"] and {"bot1", "bot3"} <= set(liga.e["bots"])
