@@ -135,6 +135,9 @@ class Servicio:
         primera_vez = (banco_vacio and not t.get("primer_ciclo_ok") and t.get("primer_ciclo") != hoy
                        and not t.get("ciclo") and self._hay_datos())
         semanal = toca_semanal and t.get("ciclo") != semana
+        if semanal and self.reloj() - t.get("ultimo_ciclo_fin", 0) < 24 * 3600:
+            t["ciclo"] = semana  # un /ciclo a mano terminó hace menos de un día: ya cuenta como el de esta semana
+            semanal = False
         if self.ciclo_en_curso is None and self.datos_en_curso is None and (semanal or primera_vez):
             if semanal:
                 t["ciclo"] = semana
@@ -206,6 +209,7 @@ class Servicio:
     def _al_terminar_ciclo(self):
         proceso, self.ciclo_en_curso = self.ciclo_en_curso, None
         self.liga.e["tareas"].pop("ciclo_corriendo", None)
+        self.liga.e["tareas"]["ultimo_ciclo_fin"] = self.reloj()
         codigo = getattr(proceso, "returncode", 0)
         if codigo:  # el ciclo se cortó: lo que muestre /fabrica sería del ciclo anterior
             self.enviar(f"⚠️ El ciclo de la fábrica se cortó con un error (código {codigo}). "
