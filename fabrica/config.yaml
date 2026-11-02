@@ -149,7 +149,7 @@ liga:
 # BINANCE_REAL_API_SECRET, solo para operar, sin retiros), LIVE_TRADING=true y confirmar con /confirmar_real.
 # El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Frenos propios (diario y total).
 real_parcial:
-  bots: []          # ejemplo: ["943f10ba0e"]
+  bots: ["943f10ba0e"]   # XRP 1h: subió a titular por ganar practicando (elegido por John, 2/11/2026)
   capital: 50       # USDT de la cuenta real con los que se calcula el riesgo (1% = 0,50 por operación)
 
 # Examen de graduación para pasar a plata real (solo informa: el sistema NUNCA cambia de modo solo)
