@@ -49,13 +49,15 @@ def _moneda(simbolo):
 
 class Liga:
     def __init__(self, cfg: dict, carpeta: str, mercado, ejecutor=None, notificar: Callable[[str], None] = print,
-                 reloj: Callable[[], float] = time.time, modo: str = "papel"):
+                 reloj: Callable[[], float] = time.time, modo: str = "papel", ejecutor_real=None):
         self.cfg = cfg
         self.L = cfg["liga"]
         self.R = cfg["riesgo"]
         self.carpeta = carpeta
         self.mercado = mercado
         self.ejecutor = ejecutor          # solo para titulares en testnet/real
+        self.ejecutor_real = ejecutor_real  # "real parcial": solo los bots elegidos operan con plata de verdad
+        self.RP = cfg.get("real_parcial") or {}
         self.notificar = notificar
         self.reloj = reloj
         self.modo = modo
@@ -75,6 +77,10 @@ class Liga:
             with open(self.ruta, encoding="utf-8") as f:
                 guardado = json.load(f)
             self.e.update(guardado)
+        cap_real = float(self.RP.get("capital", 50))
+        self.e.setdefault("cuenta_real", {"equity": cap_real, "pico": cap_real, "dia": "", "inicio_dia": cap_real,
+                                          "pnl_hoy": 0.0, "racha_hoy": 0, "freno_dia": "", "apagada": "",
+                                          "confirmado": False})
         ahora_iso = self.ahora().isoformat(timespec="seconds")
         # desde cuándo practica este sistema (estados viejos: el bot o evento más antiguo que haya)
         fechas = [b.get("desde") for b in self.e["bots"].values() if b.get("desde")] + \
@@ -120,10 +126,28 @@ class Liga:
     def con_dinero(self, bot) -> bool:
         """¿Este titular opera (o tiene abierta) una posición en Binance? Una posición abierta en modo papel
         sigue simulada hasta cerrarse aunque después se pase a testnet/real: en el exchange no existe."""
-        if bot["rol"] != "titular" or self.ejecutor is None:
-            return False
+        return self._ej(bot) is not None
+
+    def _ej(self, bot):
+        """Con qué cuenta de Binance opera este bot: la de práctica (o la del modo global), la REAL (si es uno de
+        los elegidos para plata real) o ninguna (simulado). Una posición abierta sigue en la cuenta donde se abrió."""
+        if bot["rol"] != "titular":
+            return None
         pos = bot.get("posicion")
-        return pos is None or pos.get("modo", "papel") != "papel"
+        if pos is not None:
+            if pos.get("cuenta") == "real":
+                return self.ejecutor_real
+            return self.ejecutor if pos.get("modo", "papel") != "papel" else None
+        return self.ejecutor_real if self.es_real(bot) else self.ejecutor
+
+    def es_real(self, bot) -> bool:
+        """¿Este bot abre su próxima operación con PLATA REAL? Solo si John lo eligió (config real_parcial.bots),
+        hay claves reales, LIVE_TRADING=true, lo confirmó con /confirmar_real, ya gana practicando y la cuenta real
+        no tiene frenos activados. Si algo falla, el bot sigue en la cuenta de práctica."""
+        cr = self.e["cuenta_real"]
+        return (self.ejecutor_real is not None and bot["rol"] == "titular" and bot["id"] in (self.RP.get("bots") or [])
+                and cr.get("confirmado") and not cr.get("apagada") and not cr.get("freno_dia")
+                and (bot.get("nivel") != "exploracion" or self.probada_en_practica(bot)))
 
     def capital(self) -> float:
         return C.capital_base(float(self.R["capital_inicial"]), self.e["cuenta"]["equity"])
@@ -309,8 +333,9 @@ class Liga:
     def _ascender(self, bot, motivo):
         bot["rol"] = "titular"
         bot["titular_desde"] = self.ahora().isoformat(timespec="seconds")
-        if self.ejecutor is not None:
-            self.ejecutor.preparar(bot["simbolo"])
+        for ej in (self.ejecutor, self.ejecutor_real if bot["id"] in (self.RP.get("bots") or []) else None):
+            if ej is not None:
+                ej.preparar(bot["simbolo"])
         prueba = " 🧪 (en prueba: filtros flojos, solo práctica)" if bot.get("nivel") == "exploracion" else ""
         self.evento(f"⬆️ {bot['id']} ({_moneda(bot['simbolo'])} {bot['tf']}) pasa a TITULAR{prueba}: {motivo}.\n"
                     f"Qué hace: {bot['explicacion']}")
@@ -370,10 +395,10 @@ class Liga:
 
     # ------------------------------------------------------------------ día y frenos
     def tick(self):
-        c = self.e["cuenta"]
-        if c["dia"] != self.hoy():
-            c.update(dia=self.hoy(), inicio_dia=c["equity"], pnl_hoy=0.0, racha_hoy=0, freno_dia="")
-            self.guardar()
+        for c in (self.e["cuenta"], self.e["cuenta_real"]):
+            if c["dia"] != self.hoy():
+                c.update(dia=self.hoy(), inicio_dia=c["equity"], pnl_hoy=0.0, racha_hoy=0, freno_dia="")
+                self.guardar()
 
     def puede_operar(self) -> Optional[str]:
         """None si los titulares pueden abrir operaciones; si no, el motivo."""
@@ -398,6 +423,20 @@ class Liga:
             if motivo:
                 c["freno_dia"] = motivo
                 self.evento(f"🧯 Freno diario: {motivo}. No abro más operaciones hasta mañana (las abiertas siguen con su stop).")
+        cr = self.e["cuenta_real"]
+        if not cr["freno_dia"]:
+            motivo = C.freno_diario(cr["pnl_hoy"], cr["racha_hoy"], cr["inicio_dia"],
+                                    self.R["perdida_max_dia_pct"], self.R["perdidas_seguidas_max_dia"])
+            if motivo:
+                cr["freno_dia"] = motivo
+                self.evento(f"🧯💵 Freno diario de la cuenta REAL: {motivo}. Hasta mañana los bots elegidos siguen "
+                            "en la cuenta de práctica.")
+        if not cr.get("apagada") and C.freno_total(cr["equity"], cr["pico"], self.R["caida_max_desde_pico_pct"]):
+            caida = (cr["pico"] - cr["equity"]) / cr["pico"] * 100
+            cr["apagada"] = f"la cuenta real cayó {caida:.1f}% desde su máximo"
+            self.evento(f"🛑💵 FRENO TOTAL de la cuenta REAL: cayó {caida:.1f}% ({cr['pico']:.2f} → {cr['equity']:.2f} "
+                        "USDT). No abro más operaciones con plata real; las abiertas siguen con su stop. Todo sigue en "
+                        "la cuenta de práctica.")
         if not self.e["apagado"] and C.freno_total(c["equity"], c["pico"], self.R["caida_max_desde_pico_pct"]):
             caida = (c["pico"] - c["equity"]) / c["pico"] * 100
             self.cerrar_todo("freno total")
@@ -459,9 +498,10 @@ class Liga:
         pos = bot["posicion"]
         if pos is None:
             return
-        if self.con_dinero(bot):
-            if self.ejecutor.posicion(bot["simbolo"]) is None:  # lo cerró el stop o el take-profit del exchange
-                salida, pnl = self.ejecutor.resultado_cierre(bot["simbolo"], pos)
+        ej = self._ej(bot)
+        if ej is not None:
+            if ej.posicion(bot["simbolo"]) is None:  # lo cerró el stop o el take-profit del exchange
+                salida, pnl = ej.resultado_cierre(bot["simbolo"], pos)
                 self._registrar(bot, salida, pnl, pnl / pos["riesgo_usdt"], self._motivo(pos, salida) + " (exchange)")
                 return
         else:
@@ -472,8 +512,8 @@ class Liga:
         stop_antes = pos["stop"]
         if cierre_de_vela(pos, vela, bot["estrategia"]["salidas"].get("max_velas", 0)) == "tiempo":
             self._cerrar(bot, "tiempo", precio_simulado=vela["close"])
-        elif self.con_dinero(bot) and pos["stop"] != stop_antes:
-            errores = self.ejecutor.mover_stop(bot["simbolo"], pos["lado"], pos["cantidad"], pos["stop"], pos.get("tp"))
+        elif ej is not None and pos["stop"] != stop_antes:
+            errores = ej.mover_stop(bot["simbolo"], pos["lado"], pos["cantidad"], pos["stop"], pos.get("tp"))
             if errores:
                 self._aviso_unico(f"stop-{bot['id']}", f"⚠️ No pude mover el stop de {bot['id']}: {errores[0]}. "
                                                       "El software lo sigue vigilando.")
@@ -502,14 +542,22 @@ class Liga:
                 self._senal_perdida(bot, lado, f"{ocupada['id']} ya tiene una posición abierta en "
                                                f"{_moneda(bot['simbolo'])}")
                 return
-            precio = self.ejecutor.precio(bot["simbolo"]) if self.con_dinero(bot) else vela["close"]
+            ej = self._ej(bot)
+            real = ej is not None and ej is self.ejecutor_real
+            precio = ej.precio(bot["simbolo"]) if ej is not None else vela["close"]
             niv = niveles(bot["estrategia"]["salidas"], lado, precio, atr, dist_rango)
             if niv is None:
                 self._senal_perdida(bot, lado, "no se pudo calcular el stop")
                 return
-            capital = self.capital()
+            if real:  # la cuenta real tiene su propio capital y su propio tope de riesgo abierto
+                capital = C.capital_base(float(self.RP.get("capital", 50)), self.e["cuenta_real"]["equity"])
+                abierto = sum(b["posicion"]["riesgo_usdt"] for b in self.bots("titular")
+                              if b["posicion"] and b["posicion"].get("cuenta") == "real")
+            else:
+                capital = self.capital()
+                abierto = sum(b["posicion"]["riesgo_usdt"] for b in self.bots("titular")
+                              if b["posicion"] and b["posicion"].get("cuenta") != "real")
             riesgo = capital * self.riesgo_frac
-            abierto = sum(b["posicion"]["riesgo_usdt"] for b in self.bots("titular") if b["posicion"])
             if not C.riesgo_abierto_permitido(abierto, riesgo, capital, self.R["riesgo_total_max_pct"]):
                 self._senal_perdida(bot, lado, f"el riesgo abierto total pasaría el {self.R['riesgo_total_max_pct']}%")
                 self._aviso_unico(f"riesgo-{bot['id']}", f"⏸ {bot['id']} tenía señal pero el riesgo abierto total llegaría "
@@ -525,9 +573,9 @@ class Liga:
                 self._aviso_unico(f"min-{bot['id']}", f"🚫 {bot['id']} ({_moneda(bot['simbolo'])}) tuvo señal pero no "
                                                       f"opera: {motivo}. Con {capital:.2f} USDT y {self.R['riesgo_por_operacion_pct']:g}% de riesgo no alcanza.")
                 return
-            if self.con_dinero(bot):
+            if ej is not None:
                 try:
-                    entrada, cantidad = self.ejecutor.abrir(bot["simbolo"], lado, cantidad)
+                    entrada, cantidad = ej.abrir(bot["simbolo"], lado, cantidad)
                 except Exception as e:  # noqa: BLE001 - Binance rechazó la orden: no queda nada abierto
                     self._senal_perdida(bot, lado, f"Binance rechazó la orden: {str(e)[:150]}")
                     ayuda = (" Binance dice que no hay saldo suficiente en la billetera de Futuros: hay que pasar "
@@ -549,18 +597,20 @@ class Liga:
                 return
             cantidad, riesgo_real = None, float(self.R["capital_inicial"]) * self.riesgo_frac
         bot["omitidas_seguidas"] = 0
-        en_exchange = self.con_dinero(bot)
+        ej = self._ej(bot)
+        en_exchange, real = ej is not None, ej is not None and ej is self.ejecutor_real
         bot["posicion"] = {"lado": lado, "entrada": entrada, "cantidad": cantidad, "riesgo_usdt": riesgo_real,
-                           "modo": self.modo if en_exchange else "papel",
+                           "modo": "real" if real else self.modo if en_exchange else "papel",
+                           **({"cuenta": "real"} if real else {}),
                            "abierta_ts": int(self.reloj() * 1000), "velas": 0,
                            "abierta": self.ahora().isoformat(timespec="seconds"), **niv}
         if bot["rol"] == "titular":
             if en_exchange:
-                errores = self.ejecutor.proteger(bot["simbolo"], lado, cantidad, niv["stop"], niv["tp"])
+                errores = ej.proteger(bot["simbolo"], lado, cantidad, niv["stop"], niv["tp"])
                 if errores:
                     self.evento(f"⚠️ No se pudieron poner las órdenes de protección de {bot['id']}: {errores[0]}. "
                                 f"El software vigila el stop cada {self.L['intervalo_vigilancia']} segundos.")
-            self.evento(f"🚀 {bot['id']} {'COMPRA' if lado == 1 else 'VENDE EN CORTO'} {_moneda(bot['simbolo'])} "
+            self.evento(f"{'💵 PLATA REAL · ' if real else ''}🚀 {bot['id']} {'COMPRA' if lado == 1 else 'VENDE EN CORTO'} {_moneda(bot['simbolo'])} "
                         f"a {entrada:.6g} ({cantidad:g} unidades). Si sale mal pierde ≈{riesgo_real:.2f} USDT "
                         f"(stop {niv['stop']:.6g}).")
 
@@ -572,8 +622,9 @@ class Liga:
         pos = bot["posicion"]
         if pos is None:
             return
-        if self.con_dinero(bot):
-            salida, pnl = self.ejecutor.cerrar(bot["simbolo"], pos)
+        ej = self._ej(bot)
+        if ej is not None:
+            salida, pnl = ej.cerrar(bot["simbolo"], pos)
             self._registrar(bot, salida, pnl, pnl / pos["riesgo_usdt"], motivo)
         else:
             precio = precio_simulado if precio_simulado is not None else self.mercado.precio(bot["simbolo"])
@@ -588,13 +639,15 @@ class Liga:
         bot["posicion"] = None
         self._csv(bot, trade)
         if bot["rol"] == "titular":
-            c = self.e["cuenta"]
+            real = pos.get("cuenta") == "real"
+            c = self.e["cuenta_real"] if real else self.e["cuenta"]
             c["equity"] += pnl
             c["pico"] = max(c["pico"], c["equity"])
             c["pnl_hoy"] += pnl
             c["racha_hoy"] = c.get("racha_hoy", 0) + 1 if pnl < 0 else 0  # pérdidas seguidas en el día
-            self.evento(f"{'✅' if pnl > 0 else '❌'} {bot['id']} cerró {_moneda(bot['simbolo'])}: "
-                        f"{pnl:+.2f} USDT ({r:+.1f} veces lo arriesgado), por {motivo}. Cuenta: {c['equity']:.2f} USDT.")
+            self.evento(f"{'💵 PLATA REAL · ' if real else ''}{'✅' if pnl > 0 else '❌'} {bot['id']} cerró "
+                        f"{_moneda(bot['simbolo'])}: {pnl:+.2f} USDT ({r:+.1f} veces lo arriesgado), por {motivo}. "
+                        f"{'Cuenta real' if real else 'Cuenta'}: {c['equity']:.2f} USDT.")
 
     def _csv(self, bot, t):
         nuevo = not os.path.exists(self.ruta_csv)
@@ -614,13 +667,14 @@ class Liga:
         """Cada 30 s: respaldo por software del stop/take-profit de los titulares con dinero."""
         for bot in self.bots("titular"):
             pos = bot["posicion"]
-            if pos is None or not self.con_dinero(bot):
+            ej = self._ej(bot)
+            if pos is None or ej is None:
                 continue
-            if self.ejecutor.posicion(bot["simbolo"]) is None:
-                salida, pnl = self.ejecutor.resultado_cierre(bot["simbolo"], pos)
+            if ej.posicion(bot["simbolo"]) is None:
+                salida, pnl = ej.resultado_cierre(bot["simbolo"], pos)
                 self._registrar(bot, salida, pnl, pnl / pos["riesgo_usdt"], self._motivo(pos, salida) + " (exchange)")
                 continue
-            precio = self.ejecutor.precio(bot["simbolo"])
+            precio = ej.precio(bot["simbolo"])
             lado = pos["lado"]
             if (lado == 1 and precio <= pos["stop"]) or (lado == -1 and precio >= pos["stop"]):
                 self._cerrar(bot, self._motivo(pos, pos["stop"]) + " (software)")
@@ -656,11 +710,20 @@ class Liga:
                   f"Cuenta: {c['equity']:.2f} USDT (máximo {c['pico']:.2f}) · hoy {c['pnl_hoy']:+.2f} USDT",
                   f"Titulares: {len(self.bots('titular'))} · suplentes: {len(self.bots('suplente'))} · "
                   f"jubilados: {len(self.bots('jubilado'))}"]
+        if self.ejecutor_real is not None:
+            cr = self.e["cuenta_real"]
+            elegidos = ", ".join(self.RP.get("bots") or []) or "ninguno"
+            estado_real = ("🔴 apagada: " + cr["apagada"] if cr.get("apagada") else
+                           "🟡 freno diario: " + cr["freno_dia"] if cr.get("freno_dia") else
+                           "🟡 falta confirmar con /confirmar_real" if not cr.get("confirmado") else "🟢 activa")
+            lineas.append(f"💵 Cuenta REAL: {cr['equity']:.2f} USDT · hoy {cr['pnl_hoy']:+.2f} · {estado_real} · "
+                          f"bots con plata real: {elegidos}")
         if abiertas:
             lineas.append("Operaciones abiertas:")
             for b in abiertas:
                 p = b["posicion"]
-                lineas.append(f"  {b['id']} {'compra' if p['lado'] == 1 else 'venta'} {_moneda(b['simbolo'])} "
+                lineas.append(f"  {'💵 ' if p.get('cuenta') == 'real' else ''}{b['id']} "
+                              f"{'compra' if p['lado'] == 1 else 'venta'} {_moneda(b['simbolo'])} "
                               f"a {p['entrada']:.6g}, stop {p['stop']:.6g}")
         else:
             lineas.append("Sin operaciones abiertas.")

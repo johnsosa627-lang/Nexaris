@@ -693,3 +693,50 @@ def test_suplentes_que_en_vivo_entran_juntas_cuentan_como_repetidas(tmp_path):
     liga.e["bots"]["bot3"]["trades"] = [tr(100.0, 1.0), tr(120.0, 1.0), tr(130.0, -1.0)]  # solo 1 en común
     liga.sincronizar_banco([])
     assert "bot2" not in liga.e["bots"] and {"bot1", "bot3"} <= set(liga.e["bots"])
+
+
+def test_real_parcial_solo_el_bot_elegido_opera_con_plata_real(tmp_path):
+    demo, real = EjecutorFalso(), EjecutorFalso()
+    mensajes = []
+    t = {"ahora": 1_700_000_000.0}
+    cfg = cfg_prueba(max_titulares_por_moneda=2)
+    cfg["real_parcial"] = {"bots": ["bot1"], "capital": 50}
+    liga = Liga(cfg, str(tmp_path), MercadoFalso(), demo, mensajes.append, reloj=lambda: t["ahora"], modo="testnet",
+                ejecutor_real=real)
+    liga.sincronizar_banco([distinta(1), distinta(2, "BBB/USDT:USDT")])
+    liga.completar_titulares()
+    b1, b2 = liga.e["bots"]["bot1"], liga.e["bots"]["bot2"]
+    vela = {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100}
+    liga._abrir(b1, 1, 0.5, vela)                       # sin /confirmar_real: sigue en práctica
+    assert b1["posicion"]["modo"] == "testnet" and not any(o[0] == "abrir" for o in real.ordenes)
+    liga._cerrar(b1, "prueba")
+    liga.e["cuenta_real"]["confirmado"] = True
+    liga._abrir(b1, 1, 0.5, vela)
+    liga._abrir(b2, 1, 0.5, vela)
+    assert b1["posicion"]["cuenta"] == "real" and any(o[0] == "abrir" for o in real.ordenes)
+    assert b2["posicion"]["modo"] == "testnet" and "cuenta" not in b2["posicion"]
+    assert b1["posicion"]["riesgo_usdt"] <= 0.5 + 1e-9  # 1% de los 50 USDT reales
+    assert any("PLATA REAL" in m for m in mensajes)
+    antes = liga.e["cuenta"]["equity"]
+    real.pos.clear()                                     # el stop real se ejecutó en Binance
+    liga.vigilar()
+    assert b1["posicion"] is None and liga.e["cuenta"]["equity"] == antes and liga.e["cuenta_real"]["equity"] < 50
+    assert "💵 Cuenta REAL" in liga.texto_estado()
+
+
+def test_real_parcial_frenos_propios(tmp_path):
+    real = EjecutorFalso()
+    mensajes = []
+    t = {"ahora": 1_700_000_000.0}
+    cfg = cfg_prueba()
+    cfg["real_parcial"] = {"bots": ["bot1"], "capital": 50}
+    liga = Liga(cfg, str(tmp_path), MercadoFalso(), EjecutorFalso(), mensajes.append, reloj=lambda: t["ahora"],
+                modo="testnet", ejecutor_real=real)
+    liga.sincronizar_banco([distinta(1)])
+    liga.completar_titulares()
+    liga.e["cuenta_real"]["confirmado"] = True
+    bot = liga.e["bots"]["bot1"]
+    liga.e["cuenta_real"].update(equity=40.0, pico=50.0)  # cayó 20% desde el máximo
+    liga._controlar_cuenta()
+    assert liga.e["cuenta_real"]["apagada"] and not liga.es_real(bot) and not liga.e["apagado"]
+    assert any("FRENO TOTAL de la cuenta REAL" in m for m in mensajes)
