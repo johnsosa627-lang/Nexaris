@@ -39,6 +39,10 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Titulares 🧪 a prueba:** una 🧪 solo sube a titular si practicando como suplente ya gana (5+ operaciones en vivo con promedio de R positivo). Si siendo titular su promedio cae a 0 o menos, vuelve a suplente y sigue practicando; recupera el lugar si mejora (desde el 30/10/2026, después de una semana de pérdidas en la demo).
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
 
+## Real parcial (preparado el 2/11/2026, apagado hasta que John lo active)
+
+Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la cuenta REAL de Binance; el resto sigue en la demo. Necesita: claves reales `BINANCE_REAL_API_KEY`/`BINANCE_REAL_API_SECRET` (solo futuros, sin retiros, IP 187.77.33.76), `LIVE_TRADING=true`, USDT en la billetera de Futuros real y `/confirmar_real`. Capital propio (`real_parcial.capital`, 50 USDT por defecto → 1% = 0,50 por operación) y frenos propios (diario y total). El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Candidato: XRP 1h (943f10ba0e). Decisión: domingo 8/11 con el informe semanal.
+
 ## Reglas de riesgo (no se tocan)
 
 - 1% de riesgo por operación, máximo 3% en total abierto, apalancamiento máximo 3x.
@@ -72,7 +76,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 150 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 152 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 

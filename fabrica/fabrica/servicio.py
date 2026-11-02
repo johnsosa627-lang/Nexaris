@@ -380,6 +380,12 @@ class Servicio:
         return "🧹 Cerré todas las operaciones de los titulares y pausé. Para seguir: /reanudar"
 
     def cmd_confirmar_real(self, a=""):
+        if self.liga.ejecutor_real is not None:
+            self.liga.e["cuenta_real"]["confirmado"] = True
+            self.liga.guardar()
+            return ("💵 Confirmado: " + ", ".join(self.liga.RP.get("bots") or []) + " opera con PLATA REAL "
+                    f"(capital {self.liga.RP.get('capital', 50)} USDT, 1% de riesgo por operación). "
+                    "Los demás bots siguen en la cuenta de práctica. Para frenarlo: /pausar")
         if self.liga.modo != "real":
             return "Esto solo sirve en modo real. Ahora estás en modo " + self.liga.modo + "."
         self.liga.e["real_confirmado"] = True
@@ -442,7 +448,29 @@ def main():
                               "rechazadas por falta de margen. Pasá USDT a la billetera de Futuros.")
         except Exception as e:  # noqa: BLE001
             avisos.append(f"No pude leer el saldo de Binance ({modo}): {str(e)[:200]}. Revisá las claves.")
-    liga = Liga(cfg, carpeta_vivo, Mercado(), ejecutor, tg.enviar, modo=modo)
+    # Real parcial: solo los bots elegidos en config (real_parcial.bots) operan en la cuenta REAL de Binance
+    ejecutor_real = None
+    clave_r, secreto_r = os.getenv("BINANCE_REAL_API_KEY", "").strip(), os.getenv("BINANCE_REAL_API_SECRET", "").strip()
+    if clave_r and secreto_r and modo != "real":
+        if os.getenv("LIVE_TRADING", "").strip().lower() != "true":
+            avisos.append("Hay claves de la cuenta REAL pero falta LIVE_TRADING=true en la configuración: "
+                          "por seguridad, ningún bot opera con plata real.")
+        elif not (cfg.get("real_parcial") or {}).get("bots"):
+            avisos.append("Hay claves de la cuenta REAL pero ningún bot elegido en config (real_parcial.bots).")
+        else:
+            ejecutor_real = EjecutorBinance(crear_cliente_privado("real", clave_r, secreto_r),
+                                            cfg["riesgo"]["apalancamiento_max"], cfg["costos"]["comision_pct"])
+            try:
+                saldo = ejecutor_real.saldo()
+                log.info("Saldo en Binance Futuros (REAL): %.2f USDT", saldo)
+                capital = float(cfg["real_parcial"].get("capital", 50))
+                if saldo < capital:
+                    avisos.append(f"💵 En la billetera de Futuros de la cuenta REAL hay {saldo:.2f} USDT y el bot "
+                                  f"elegido opera como si hubiera {capital:g}: pasá USDT a Futuros o bajá real_parcial.capital.")
+            except Exception as e:  # noqa: BLE001
+                avisos.append(f"No pude leer el saldo de la cuenta REAL: {str(e)[:200]}. Revisá las claves reales.")
+                ejecutor_real = None
+    liga = Liga(cfg, carpeta_vivo, Mercado(), ejecutor, tg.enviar, modo=modo, ejecutor_real=ejecutor_real)
     if modo == "real" and os.getenv("LIVE_TRADING", "").strip().lower() != "true":
         liga.e.update(apagado=True, motivo_apagado="MODO=real necesita LIVE_TRADING=true en la configuración")
     servicio = Servicio(cfg, liga, liga.mercado, tg.enviar)
@@ -454,6 +482,9 @@ def main():
         tg.enviar("⚠️ " + a)
     if modo == "real" and not liga.e["real_confirmado"] and not liga.e["apagado"]:
         tg.enviar("⚠️ Modo REAL: antes de operar con plata de verdad, confirmá con /confirmar_real")
+    if ejecutor_real is not None and not liga.e["cuenta_real"].get("confirmado"):
+        tg.enviar("💵 Listo para operar con PLATA REAL solo con: " + ", ".join(cfg["real_parcial"]["bots"]) +
+                  f" (capital {cfg['real_parcial'].get('capital', 50)} USDT). Para activarlo mandá /confirmar_real")
     tg.enviar(f"🤖 Fábrica de bots prendida (modo {modo}).\n" + liga.texto_estado() + "\n\n" + AYUDA)
     servicio.correr()
 
