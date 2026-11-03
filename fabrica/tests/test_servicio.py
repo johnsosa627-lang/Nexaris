@@ -285,3 +285,34 @@ def test_fabrica_muestra_las_estrategias_conocidas_que_aprobaron(tmp_path):
         f.write("ciclo_x")
     texto = s.resumen_fabrica()
     assert "⭐ Turtle Soup de Linda Raschke (XRP 1h)" in texto and "Supertrend" not in texto
+
+
+def test_telegram_pasa_a_conexiones_cortas_si_las_largas_se_cortan(monkeypatch):
+    import requests as rq
+    from fabrica import telegram as T
+    tg = T.Telegram("123456789:" + "A" * 35, "1")
+    tg._descartar_pendientes = lambda: None
+    esperas, recibidos = [], []
+    tg.procesar = recibidos.append
+
+    class Fin(BaseException):  # no la atrapa el "except Exception" del bucle
+        pass
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"ok": True, "result": [{"update_id": 7, "message": {}}]}
+
+    def get(url, params=None, timeout=None):
+        esperas.append(params["timeout"])
+        if params["timeout"] > 0:
+            raise rq.exceptions.ReadTimeout("Read timed out")
+        if len(esperas) > 4:
+            raise Fin()
+        return Resp()
+    monkeypatch.setattr(T.requests, "get", get)
+    monkeypatch.setattr(T.time, "sleep", lambda s: None)
+    with pytest.raises(Fin):
+        tg._bucle()
+    assert esperas[:3] == [25, 25, 0] and recibidos and tg._offset == 8
