@@ -22,6 +22,10 @@ def limpiar_token(valor: str) -> str:
     return m.group(0) if m else valor.rsplit("=", 1)[-1].strip()
 
 
+ESPERA_LARGA = 25   # segundos que Telegram retiene la consulta si no hay mensajes (long polling)
+PAUSA_CORTA = 3     # en modo de conexiones cortas: cada cuánto pregunta
+
+
 class Telegram:
     def __init__(self, token: str, chat_id: str):
         self.token = token or ""
@@ -92,21 +96,37 @@ class Telegram:
             log.warning("Telegram: %s", e)
 
     def _bucle(self):
+        """Pide los mensajes nuevos a Telegram. Empieza con espera larga (long polling: responde al instante);
+        si la red corta esas conexiones largas (pasó en el servidor: "Read timed out" una y otra vez), pasa a
+        preguntar seguido con conexiones cortas, que no se cortan."""
         self._descartar_pendientes()
+        espera, cortes = ESPERA_LARGA, 0
         while True:
             try:
-                params = {"timeout": 25}
+                params = {"timeout": espera}
                 if self._offset is not None:
                     params["offset"] = self._offset
-                r = requests.get(f"{self.url}/getUpdates", params=params, timeout=35)
+                r = requests.get(f"{self.url}/getUpdates", params=params, timeout=espera + 10)
                 datos = r.json()
                 if not datos.get("ok"):  # token mal puesto u otro problema: avisar en vez de girar en vacío
                     log.warning("Telegram no acepta el token (%s): %s", r.status_code, str(datos.get("description"))[:200])
                     time.sleep(60)
                     continue
+                cortes = 0
                 for update in datos.get("result", []):
                     self._offset = update["update_id"] + 1
                     self.procesar(update)
+                if espera == 0:
+                    time.sleep(PAUSA_CORTA)
+            except requests.exceptions.Timeout as e:
+                cortes += 1
+                if espera and cortes >= 2:
+                    espera = 0
+                    log.warning("Telegram: las esperas largas se cortan (%s); paso a preguntar cada %s s", e,
+                                PAUSA_CORTA)
+                else:
+                    log.warning("Telegram: %s", e)
+                time.sleep(2)
             except Exception as e:  # noqa: BLE001
                 log.warning("Telegram: %s", e)
                 time.sleep(5)
