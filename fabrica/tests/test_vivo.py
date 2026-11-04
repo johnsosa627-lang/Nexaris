@@ -740,3 +740,20 @@ def test_real_parcial_frenos_propios(tmp_path):
     liga._controlar_cuenta()
     assert liga.e["cuenta_real"]["apagada"] and not liga.es_real(bot) and not liga.e["apagado"]
     assert any("FRENO TOTAL de la cuenta REAL" in m for m in mensajes)
+
+
+def test_real_parcial_no_lo_bloquea_una_posicion_de_la_demo_en_la_misma_moneda(tmp_path):
+    demo, real = EjecutorFalso(), EjecutorFalso()
+    t = {"ahora": 1_700_000_000.0}
+    cfg = cfg_prueba(max_titulares_por_moneda=2)
+    cfg["real_parcial"] = {"bots": ["bot1"], "capital": 50}
+    liga = Liga(cfg, str(tmp_path), MercadoFalso(), demo, lambda m: None, reloj=lambda: t["ahora"], modo="testnet",
+                ejecutor_real=real)
+    liga.sincronizar_banco([distinta(1), distinta(2)])
+    liga.completar_titulares()
+    liga.e["cuenta_real"]["confirmado"] = True
+    b1, b2 = liga.e["bots"]["bot1"], liga.e["bots"]["bot2"]
+    vela = {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100}
+    liga._abrir(b2, -1, 0.5, vela)      # demo abre AAA
+    liga._abrir(b1, 1, 0.5, vela)       # la real abre AAA en OTRA cuenta: no se mezclan
+    assert b2["posicion"] and b1["posicion"] and b1["posicion"]["cuenta"] == "real"
