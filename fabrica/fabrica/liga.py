@@ -536,8 +536,10 @@ class Liga:
             if bloqueo:
                 self._senal_perdida(bot, lado, bloqueo)
                 return
+            cuenta = "real" if self._ej(bot) is not None and self._ej(bot) is self.ejecutor_real else "otra"
             ocupada = next((t for t in self.bots("titular")
-                            if t["id"] != bot["id"] and t["simbolo"] == bot["simbolo"] and t["posicion"]), None)
+                            if t["id"] != bot["id"] and t["simbolo"] == bot["simbolo"] and t["posicion"]
+                            and ("real" if t["posicion"].get("cuenta") == "real" else "otra") == cuenta), None)
             if ocupada:  # en Binance hay una sola posición por moneda: no se mezclan dos bots en la misma
                 self._senal_perdida(bot, lado, f"{ocupada['id']} ya tiene una posición abierta en "
                                                f"{_moneda(bot['simbolo'])}")
