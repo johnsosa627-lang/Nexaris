@@ -7,7 +7,9 @@ import { t } from "@/i18n";
 import { CONTACT_SOURCES, MANUAL_ACTIVITY_TYPES, STAGES, type Stage } from "@/lib/catalog";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { requireCtx } from "@/lib/session";
+import { DiagnosisCard } from "@/components/diagnosis-card";
 import { getCompanyDetail } from "@/server/crm";
+import { getDiagnoses } from "@/server/diagnosis";
 import { UserError } from "@/server/errors";
 import {
   addActivityAction,
@@ -35,6 +37,7 @@ export default async function CompanyPage({ params }: PageProps<"/empresas/[id]"
     throw err;
   }
   const { company: c, contacts, activities, followUps, suggestedDueAt } = detail;
+  const diag = await getDiagnoses(ctx, c.id);
   const pendingFollowUps = followUps.filter((f) => f.status === "pendiente");
 
   const contactOptions = (
@@ -75,7 +78,7 @@ export default async function CompanyPage({ params }: PageProps<"/empresas/[id]"
           </div>
           <div className="mt-1 text-xs text-slate-500">
             Origen: {t.companySources[c.source as keyof typeof t.companySources] ?? c.source} · Alta {formatDate(c.createdAt)} ·
-            Puntuación de oportunidad: {c.opportunityScore ?? "sin calcular (Etapa 1B)"}
+            Puntuación de oportunidad: {c.opportunityScore ?? "sin calcular"}
           </div>
         </div>
         <ActionForm action={changeStageAction} className="flex items-end gap-2">
@@ -96,6 +99,16 @@ export default async function CompanyPage({ params }: PageProps<"/empresas/[id]"
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          <DiagnosisCard
+            companyId={c.id}
+            hasWebsite={!!c.website}
+            latest={diag.latestDone}
+            findings={diag.latestFindings}
+            pending={diag.pending}
+            history={diag.list}
+            existingEmails={contacts.map((ct) => ct.email ?? "").filter(Boolean)}
+          />
+
           <Card title="Registrar actividad">
             <ActionForm action={addActivityAction} resetOnSuccess className="space-y-3">
               <input type="hidden" name="companyId" value={c.id} />

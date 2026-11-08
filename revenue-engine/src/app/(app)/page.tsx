@@ -5,6 +5,8 @@ import { STAGES } from "@/lib/catalog";
 import { formatDateTime } from "@/lib/format";
 import { requireCtx } from "@/lib/session";
 import { getDashboard } from "@/server/crm";
+import { getAiSpendSummary } from "@/server/diagnosis";
+import { formatMoney } from "@/lib/format";
 
 export const metadata = { title: "Panel" };
 
@@ -16,7 +18,7 @@ const alertStyles = {
 
 export default async function DashboardPage() {
   const ctx = await requireCtx();
-  const d = await getDashboard(ctx);
+  const [d, ai] = await Promise.all([getDashboard(ctx), getAiSpendSummary(ctx)]);
 
   return (
     <>
@@ -67,7 +69,14 @@ export default async function DashboardPage() {
         <Stat label="Empresas en el CRM" value={d.totalCompanies} href="/empresas" />
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+        <Stat
+          label="Gasto de IA (este mes)"
+          value={formatMoney(Math.round(ai.spentCents))}
+          hint={`Tope: ${formatMoney(ai.budgetCents)}`}
+          tone={ai.budgetCents > 0 && ai.spentCents >= ai.budgetCents * 0.8 ? "warning" : "default"}
+          href="/seguridad"
+        />
         <Stat label="Ingresos del negocio" value="Sin datos" tone="muted" hint="Se registran en la Fase 5 (finanzas)" />
         <Stat label="Comisiones pendientes" value="Sin datos" tone="muted" hint="Se calculan en la Fase 5" />
         <Stat label="Resultados comerciales" value="Sin datos" tone="muted" hint="Se miden con clientes (Fase 4)" />

@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { run, str, type ActionState } from "@/lib/action-state";
 import { requireCtx } from "@/lib/session";
 import { decideApproval } from "@/server/gateway";
+// Registra el ejecutor de "preparar_diagnostico" (encola el análisis al aprobarse).
+import "@/server/diagnosis";
+import { kickWorker } from "@/server/worker";
 
 export async function decideAction(_prev: ActionState, form: FormData): Promise<ActionState> {
   const ctx = await requireCtx();
@@ -15,6 +18,7 @@ export async function decideAction(_prev: ActionState, form: FormData): Promise<
       note: str(form, "note"),
       confirmation: str(form, "confirmation"),
     });
+    kickWorker();
     revalidatePath("/aprobaciones");
     revalidatePath("/");
     const nota = (r?.result as { nota?: string } | null)?.nota;

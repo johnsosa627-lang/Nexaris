@@ -107,6 +107,13 @@ export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 export const AI_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"] as const;
 export type AiModel = (typeof AI_MODELS)[number];
 
+/** Precios de la API en US$ por millón de tokens (entrada / salida). Revisar si Anthropic los cambia. */
+export const MODEL_PRICES: Record<AiModel, { input: number; output: number }> = {
+  "claude-opus-5-5": { input: 4, output: 20 },
+  "claude-sonnet-5-5": { input: 2, output: 10 },
+  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
+};
+
 export type AgentDefinition = {
   key: string;
   /** Fase del plan en la que el agente empieza a funcionar de verdad. */
@@ -121,7 +128,7 @@ export const AGENTS: AgentDefinition[] = [
     key: "director",
     phase: 1,
     defaultModel: "claude-opus-5-5",
-    actions: ["analizar_datos", "detectar_oportunidades", "generar_informe", "crear_borrador"],
+    actions: ["analizar_datos", "preparar_diagnostico", "detectar_oportunidades", "generar_informe", "crear_borrador"],
   },
   {
     key: "market_research",

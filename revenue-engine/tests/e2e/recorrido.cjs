@@ -24,7 +24,7 @@ function ok(msg) {
 }
 
 async function expectText(page, text, msg) {
-  await page.getByText(text, { exact: false }).first().waitFor({ timeout: 10000 });
+  await page.getByText(text, { exact: false }).filter({ visible: true }).first().waitFor({ timeout: 15000 });
   ok(msg || `Se ve: "${text}"`);
 }
 
@@ -134,9 +134,65 @@ async function expectText(page, text, msg) {
     await page.goto(`${BASE}/agentes`);
     await expectText(page, "Director General AI");
     const cards = await page.getByText("En preparación · Fase").count();
-    if (cards !== 13) throw new Error(`Esperaba 13 agentes en preparación, hay ${cards}`);
-    ok("Muestra los 13 agentes, todos marcados como en preparación");
+    if (cards !== 12) throw new Error(`Esperaba 12 agentes en preparación, hay ${cards}`);
+    ok("Muestra los agentes: 12 en preparación y el Director disponible");
+
+    // 9b. Diagnóstico: sin Director encendido no se puede
+    await page.goto(companyUrl);
+    await page.getByRole("button", { name: "Analizar sitio web", exact: true }).click();
+    await expectText(page, "El Director General está apagado", "Sin el Director encendido no se puede analizar");
+
+    // Encender el Director
+    await page.goto(`${BASE}/agentes`);
+    const director = page.locator("section", { hasText: "Director General AI" });
+    await director.getByText("Configurar").click();
+    await director.locator("input[name=enabled]").check();
+    await director.getByRole("button", { name: "Guardar", exact: true }).click();
+    await expectText(page, "Configuración guardada.", "Enciende el Director");
+    await page.reload();
+    await director.getByText("Encendido").first().waitFor();
+    ok("El Director figura como encendido");
     await page.screenshot({ path: path.join(SHOTS, "05-agentes.png"), fullPage: true });
+
+    // Analizar (el dominio de prueba no existe: el diagnóstico debe decirlo, sin inventar nada)
+    await page.goto(companyUrl);
+    await page.getByRole("button", { name: "Analizar sitio web", exact: true }).click();
+    await page.getByText("No se pudo abrir el sitio web").filter({ visible: true }).first().waitFor({ timeout: 60000 });
+    ok("El diagnóstico informa que el sitio no se pudo abrir (la sección se actualizó sola)");
+    await expectText(page, "No se pidió resumen a la IA", "No gasta IA en un sitio que no se pudo analizar");
+
+    // Diagnóstico completo preparado por el script de datos (si existe)
+    if (process.env.SEED_DATABASE_URL) {
+      const richUrl = require("node:child_process")
+        .execFileSync("npx", ["tsx", "tests/e2e/sembrar-diagnostico.ts", BASE], {
+          env: { ...process.env, NODE_ENV: "test", ANALYZER_ALLOW_PRIVATE: "true", DATABASE_URL: process.env.SEED_DATABASE_URL },
+        })
+        .toString()
+        .trim()
+        .split("\n")
+        .pop();
+      await page.goto(richUrl);
+      await expectText(page, "Resumen redactado por IA", "Muestra el resumen de IA");
+      await expectText(page, "Hallazgos comprobados", "Muestra los hallazgos comprobados");
+      await expectText(page, "Estimaciones (no comprobadas)", "Las estimaciones están separadas y rotuladas");
+      await page.getByRole("button", { name: "Agregar como contacto", exact: true }).first().click();
+      await expectText(page, "Email publicado en el sitio", "Agrega un email encontrado como contacto, con el sitio como origen");
+      await page.screenshot({ path: path.join(SHOTS, "08-diagnostico.png"), fullPage: true });
+    }
+
+    // Importar lista
+    await page.goto(`${BASE}/empresas/importar`);
+    await page.fill("#list", "Nombre\tSitio web\nInmobiliaria Importada Uno\tinmo-importada-1.example\nInmobiliaria Importada Dos\tinmo-importada-2.example\nRepetida\tautomotora-real.example");
+    await page.fill("#sector", "Inmobiliarias");
+    await page.fill("#city", "Montevideo");
+    await page.getByRole("button", { name: "Importar", exact: true }).click();
+    await expectText(page, "Se cargaron 2 empresa(s)", "Importa una lista pegada");
+    await expectText(page, "Ya existe una empresa con el sitio", "Explica por qué saltea una repetida");
+
+    // Ordenar por puntuación
+    await page.goto(`${BASE}/empresas?orden=puntuacion`);
+    await page.locator("text=/\\d+\\/100/").first().waitFor();
+    ok("La lista muestra la puntuación y se puede ordenar por mejor oportunidad");
 
     // 10. Celular
     const phone = await browser.newContext({ ...require("playwright").devices["iPhone 13"] });

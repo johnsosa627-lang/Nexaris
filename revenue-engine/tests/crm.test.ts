@@ -157,7 +157,7 @@ describe("agentes", () => {
     expect(agents).toHaveLength(13);
     expect(agents.every((a) => !a.enabled)).toBe(true);
     await expect(
-      updateAgentSettings(ctx, "director", { enabled: true, model: "claude-opus-5-5", monthlyBudgetCents: 0, instructions: "" }),
+      updateAgentSettings(ctx, "seo_engine", { enabled: true, model: "claude-opus-5-5", monthlyBudgetCents: 0, instructions: "" }),
     ).rejects.toThrow(/todavía no está construido/);
     await updateAgentSettings(ctx, "director", {
       enabled: false,

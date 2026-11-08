@@ -1,6 +1,6 @@
 # Revenue Engine AI — Diagnóstico inicial, arquitectura y plan
 
-Fecha: 8/11/2026 · Estado: **aprobado.** Etapa 1A terminada (ver `README.md`).
+Fecha: 8/11/2026 · Estado: **aprobado.** Etapas 1A y 1B terminadas (ver `README.md`).
 
 ---
 
@@ -60,7 +60,7 @@ No son 12 programas de IA conversando entre sí sin control. Es **una sola aplic
 | **PostgreSQL** (en tu VPS, vía Easypanel) | Base de datos de todo: CRM, finanzas, historial, cola de tareas | Gratis (ya pagás el VPS) |
 | **Drizzle** (librería) | Hablar con la base de datos de forma segura y con migraciones | Gratis |
 | Inicio de sesión propio (`scrypt` de Node) | Inicio de sesión, roles (vos, equipo, cliente). Reemplazó a Auth.js: menos dependencias | Gratis |
-| **pg-boss** (desde la Etapa 1B) | Cola de tareas en PostgreSQL (evita sumar Redis) | Gratis |
+| Cola propia en PostgreSQL | Cola de diagnósticos sin sumar Redis ni otro servicio (pg-boss quedó descartado por ahora) | Gratis |
 | **API de Claude (Anthropic)** | Redactar diagnósticos, propuestas, correos, análisis | Pago por uso (ver abajo) |
 | **Google PageSpeed Insights API** | Velocidad y calidad técnica de sitios web | Gratis |
 | **Playwright/Chromium** | Leer sitios web como un navegador real (solo páginas públicas, respetando robots.txt) | Gratis |
@@ -151,7 +151,7 @@ Cada etapa termina con pruebas automáticas, una prueba manual guiada para vos y
 | Etapa | Contenido | Necesita de vos |
 |---|---|---|
 | **1A — Base** ✅ | Proyecto, base de datos, inicio de sesión, panel principal, registro de empresas y contactos, CRM básico con etapas e historial, registro de actividad, niveles de autonomía, botón de parada, pantalla de configuración de agentes. Datos de prueba marcados como tales. | Aprobar este plan |
-| **1B — Diagnóstico** | Analizador de sitios web, PageSpeed, diagnóstico con IA (hechos vs. estimaciones), puntuación de oportunidad, tope de gasto de IA. | Clave de Anthropic |
+| **1B — Diagnóstico** ✅ | Analizador de sitios web, PageSpeed, diagnóstico con IA (hechos vs. estimaciones), puntuación de oportunidad, tope de gasto de IA. | Clave de Anthropic |
 | **1C — Contacto** | Borradores de correo y propuesta, cola de aprobación, lista de exclusión, seguimientos programados, registro de respuestas a mano. **Primera prueba con 20–30 empresas reales.** | Elegir sector; revisar el texto legal de baja |
 | **2 — Captación completa** | Búsqueda con Google Places, conexión Gmail (enviar con aprobación, detectar respuestas), clasificación de interesados con IA, propuesta en PDF. | Clave de Google Places; proyecto Google Cloud |
 | **3 — Inteligencia comercial** | Competidores, SEO, conversión de sitios, productos y tiendas, conectores de Search Console / Analytics / Business Profile / Shopify. | Acceso a cuentas de un cliente piloto |

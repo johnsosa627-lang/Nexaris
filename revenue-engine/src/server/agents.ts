@@ -10,9 +10,9 @@ import { UserError } from "./errors";
 /**
  * Agentes que ya tienen su lógica construida y probada. Un agente solo se puede encender si está acá:
  * así el panel nunca muestra como "activo" algo que en realidad no hace nada.
- * (Etapa 1A: todavía ninguno. El primero será el Director + diagnóstico en la Etapa 1B.)
+ * (Etapa 1B: el Director, que coordina los diagnósticos.)
  */
-export const RUNNABLE_AGENTS = new Set<string>();
+export const RUNNABLE_AGENTS = new Set<string>(["director"]);
 
 export async function listAgents(ctx: Ctx) {
   assertInternal(ctx);

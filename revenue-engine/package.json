@@ -10,15 +10,18 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node --env-file-if-exists=.env scripts/migrate.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.5",
     "postgres": "^4.1.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
+    "undici": "^8.12.4",
     "zod": "^4.6.7"
   },
   "devDependencies": {

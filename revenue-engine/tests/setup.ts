@@ -10,7 +10,7 @@ const { sql } = await import("drizzle-orm");
 
 beforeEach(async () => {
   await getDb().execute(sql`
-    truncate table audit_log, approvals, suppression_list, action_policies, agent_settings,
+    truncate table ai_usage, findings, diagnoses, audit_log, approvals, suppression_list, action_policies, agent_settings,
       follow_ups, activities, contacts, sessions, companies, users, workspaces restart identity cascade
   `);
 });

@@ -283,3 +283,95 @@ export const auditLog = pgTable(
     index("audit_action_idx").on(t.action, t.at),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Etapa 1B: diagnósticos
+// ---------------------------------------------------------------------------
+
+/** Un análisis de la presencia digital de una empresa. */
+export const diagnoses = pgTable(
+  "diagnoses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    /** en_cola · en_proceso · listo · fallido */
+    status: text("status").notNull().default("en_cola"),
+    attempts: integer("attempts").notNull().default(0),
+    requestedBy: uuid("requested_by").references(() => users.id),
+    analyzedUrl: text("analyzed_url"),
+    /** Hechos medidos en el sitio (ver src/server/analyzer/types.ts). */
+    facts: jsonb("facts"),
+    score: integer("score"),
+    scoreBreakdown: jsonb("score_breakdown"),
+    /** Resumen redactado por la IA (null si no se usó IA). */
+    aiSummary: jsonb("ai_summary"),
+    /** Por qué no hay resumen de IA, si no lo hay (sin clave, tope de gasto, etc.). */
+    aiNote: text("ai_note"),
+    model: text("model"),
+    costCents: integer("cost_cents").notNull().default(0),
+    error: text("error"),
+    isDemo: boolean("is_demo").notNull().default(false),
+    createdAt: createdAt(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("diagnoses_company_idx").on(t.companyId, t.createdAt),
+    index("diagnoses_status_idx").on(t.status, t.createdAt),
+  ],
+);
+
+/** Cada problema u observación encontrada. kind: hecho (medido) · estimacion · hipotesis. */
+export const findings = pgTable(
+  "findings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    diagnosisId: uuid("diagnosis_id")
+      .notNull()
+      .references(() => diagnoses.id, { onDelete: "cascade" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    kind: text("kind").notNull(),
+    category: text("category").notNull(),
+    severity: text("severity").notNull(),
+    title: text("title").notNull(),
+    detail: text("detail").notNull(),
+    evidence: text("evidence"),
+    sourceUrl: text("source_url"),
+    recommendation: text("recommendation"),
+    service: text("service"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("findings_diagnosis_idx").on(t.diagnosisId)],
+);
+
+/** Cada llamada a un modelo de IA: para controlar el gasto real. */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    agentKey: text("agent_key").notNull(),
+    model: text("model").notNull(),
+    purpose: text("purpose").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    /** Costo en milésimas de centavo de dólar (1 = US$0,00001) para no perder precisión. */
+    costMillicents: integer("cost_millicents").notNull().default(0),
+    diagnosisId: uuid("diagnosis_id").references(() => diagnoses.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("ai_usage_workspace_idx").on(t.workspaceId, t.createdAt)],
+);

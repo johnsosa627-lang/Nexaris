@@ -46,6 +46,9 @@ const AUDIT_LABELS: Record<string, string> = {
   "agente.configurado": "Agente configurado",
   "datos_prueba.cargados": "Datos de prueba cargados",
   "datos_prueba.borrados": "Datos de prueba borrados",
+  "diagnostico.pedido": "Diagnóstico pedido",
+  "diagnostico.listo": "Diagnóstico listo",
+  "diagnostico.fallido": "Diagnóstico fallido",
 };
 
 export default async function SecurityPage() {

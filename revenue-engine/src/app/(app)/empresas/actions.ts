@@ -15,6 +15,9 @@ import {
   updateCompany,
   type CompanyInput,
 } from "@/server/crm";
+import { requestDiagnosis, requestPendingDiagnoses } from "@/server/diagnosis";
+import { importCompanies } from "@/server/importer";
+import { kickWorker } from "@/server/worker";
 
 function companyFromForm(form: FormData): CompanyInput {
   return {
@@ -127,4 +130,60 @@ export async function closeFollowUpAction(_prev: ActionState, form: FormData): P
     refresh(f.companyId);
     revalidatePath("/seguimientos");
   }, status === "hecho" ? "Marcado como hecho." : "Cancelado.");
+}
+
+// ---------- Etapa 1B: diagnósticos e importación ----------
+
+export async function requestDiagnosisAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const ctx = await requireCtx();
+  const id = str(form, "companyId");
+  return run(async () => {
+    const r = await requestDiagnosis(ctx, id);
+    kickWorker();
+    refresh(id);
+    if (r.status === "requiere_aprobacion") return "El diagnóstico requiere aprobación (lo configuraste en Nivel 2). Revisá «Aprobaciones».";
+    return r.alreadyQueued ? "Ya hay un análisis en curso." : "Análisis en marcha. Tarda menos de un minuto.";
+  });
+}
+
+export async function requestPendingDiagnosesAction(): Promise<ActionState> {
+  const ctx = await requireCtx();
+  return run(async () => {
+    const r = await requestPendingDiagnoses(ctx);
+    kickWorker();
+    revalidatePath("/empresas");
+    if (r.found === 0) return "No hay empresas con sitio web pendientes de análisis.";
+    return `${r.queued} empresa(s) en cola de análisis${r.approvals ? `, ${r.approvals} esperando aprobación` : ""}. Se procesan de a una.`;
+  });
+}
+
+export async function addFoundEmailAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const ctx = await requireCtx();
+  const id = str(form, "companyId");
+  return run(async () => {
+    await addContact(ctx, id, {
+      name: "Email publicado en el sitio",
+      email: str(form, "email"),
+      source: "sitio_web_empresa",
+      sourceUrl: str(form, "sourceUrl"),
+    });
+    refresh(id);
+  }, "Agregado como contacto (con el sitio como origen).");
+}
+
+export async function importAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const ctx = await requireCtx();
+  return run(async () => {
+    const r = await importCompanies(ctx, str(form, "list"), {
+      sector: str(form, "sector"),
+      city: str(form, "city"),
+      country: str(form, "country") || "UY",
+    });
+    revalidatePath("/empresas");
+    revalidatePath("/");
+    const skipped = r.skipped.length
+      ? ` Salteadas ${r.skipped.length}: ` + r.skipped.slice(0, 8).map((s) => `fila ${s.line} (${s.name}): ${s.reason}`).join(" · ")
+      : "";
+    return `Se cargaron ${r.created} empresa(s).${skipped}`;
+  });
 }

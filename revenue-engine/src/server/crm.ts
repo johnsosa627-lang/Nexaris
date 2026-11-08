@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { activities, approvals, companies, contacts, followUps, users } from "@/db/schema";
@@ -170,7 +170,7 @@ export async function changeStage(ctx: Ctx, id: string, stage: string) {
   return row;
 }
 
-export async function listCompanies(ctx: Ctx, filters: { q?: string; stage?: string } = {}) {
+export async function listCompanies(ctx: Ctx, filters: { q?: string; stage?: string; sort?: string } = {}) {
   assertInternal(ctx);
   const conds: SQL[] = [eq(companies.workspaceId, ctx.workspaceId)];
   if (filters.stage && (STAGES as readonly string[]).includes(filters.stage)) {
@@ -192,7 +192,11 @@ export async function listCompanies(ctx: Ctx, filters: { q?: string; stage?: str
     .select()
     .from(companies)
     .where(and(...conds))
-    .orderBy(desc(companies.updatedAt))
+    .orderBy(
+      ...(filters.sort === "puntuacion"
+        ? [sql`${companies.opportunityScore} desc nulls last`, desc(companies.updatedAt)]
+        : [desc(companies.updatedAt)]),
+    )
     .limit(500);
 }
 
