@@ -76,7 +76,7 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 154 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 155 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 

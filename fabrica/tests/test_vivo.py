@@ -757,3 +757,19 @@ def test_real_parcial_no_lo_bloquea_una_posicion_de_la_demo_en_la_misma_moneda(t
     liga._abrir(b2, -1, 0.5, vela)      # demo abre AAA
     liga._abrir(b1, 1, 0.5, vela)       # la real abre AAA en OTRA cuenta: no se mezclan
     assert b2["posicion"] and b1["posicion"] and b1["posicion"]["cuenta"] == "real"
+
+
+def test_resumen_nocturno_separa_la_cuenta_real(tmp_path):
+    t = {"ahora": 1_700_000_000.0}
+    cfg = cfg_prueba()
+    cfg["real_parcial"] = {"bots": ["bot1"], "capital": 50}
+    liga = Liga(cfg, str(tmp_path), MercadoFalso(), EjecutorFalso(), lambda m: None, reloj=lambda: t["ahora"],
+                modo="testnet", ejecutor_real=EjecutorFalso())
+    liga.sincronizar_banco([distinta(1)])
+    liga.completar_titulares()
+    hoy = liga.ahora().isoformat(timespec="seconds")
+    liga.e["bots"]["bot1"]["trades"] = [{"fecha": hoy, "rol": "titular", "r": 1.9, "pnl_usdt": 0.94, "modo": "real"}]
+    liga.e["cuenta_real"]["equity"] = 50.94
+    texto = liga.texto_noche()
+    assert "la cuenta de práctica quedó igual 0.00 dólares con 0" in texto
+    assert "💵 Cuenta REAL: +0.94 dólares con 1 operación(es); ahora tiene 50.94" in texto

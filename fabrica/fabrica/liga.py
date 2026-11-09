@@ -776,10 +776,17 @@ class Liga:
         # Últimas 24 horas (no el día UTC: a las 22 h de Montevideo el día UTC recién empieza y quedaría casi vacío)
         desde = (self.ahora() - timedelta(hours=24)).isoformat(timespec="seconds")
         titulares = [t for b in self.bots() for t in b["trades"] if t["fecha"] >= desde and t["rol"] == "titular"]
-        n, pnl = len(titulares), sum(t["pnl_usdt"] for t in titulares)
+        reales = [t for t in titulares if t.get("modo") == "real"]
+        demo = [t for t in titulares if t.get("modo") != "real"]
+        n, pnl = len(demo), sum(t["pnl_usdt"] for t in demo)
         resultado_dia = "ganó" if pnl > 0 else "perdió" if pnl < 0 else "quedó igual"
-        partes = [f"🌙 Resumen de las últimas 24 horas: la cuenta {resultado_dia} {abs(pnl):.2f} dólares con {n} "
+        cuenta = "la cuenta de práctica" if self.ejecutor_real is not None else "la cuenta"
+        partes = [f"🌙 Resumen de las últimas 24 horas: {cuenta} {resultado_dia} {abs(pnl):.2f} dólares con {n} "
                   f"operaciones y ahora tiene {c['equity']:.2f}."]
+        if self.ejecutor_real is not None:
+            pr = sum(t["pnl_usdt"] for t in reales)
+            partes.append(f"💵 Cuenta REAL: {pr:+.2f} dólares con {len(reales)} operación(es); ahora tiene "
+                          f"{self.e['cuenta_real']['equity']:.2f}.")
         abiertas = sum(1 for b in self.bots("titular") if b["posicion"])
         partes.append(f"Hay {len(self.bots('titular'))} bots titulares trabajando y {abiertas} operación(es) abierta(s).")
         practica = [t for b in self.bots() for t in b["trades"] if t["fecha"] >= desde and t["rol"] == "suplente"]
