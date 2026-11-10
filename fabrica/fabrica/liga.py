@@ -145,9 +145,43 @@ class Liga:
         hay claves reales, LIVE_TRADING=true, lo confirmó con /confirmar_real, ya gana practicando y la cuenta real
         no tiene frenos activados. Si algo falla, el bot sigue en la cuenta de práctica."""
         cr = self.e["cuenta_real"]
-        return (self.ejecutor_real is not None and bot["rol"] == "titular" and bot["id"] in (self.RP.get("bots") or [])
+        return (self.ejecutor_real is not None and bot["rol"] == "titular" and bot["id"] in self.bots_reales()
                 and cr.get("confirmado") and not cr.get("apagada") and not cr.get("freno_dia")
                 and (bot.get("nivel") != "exploracion" or self.probada_en_practica(bot)))
+
+    def bots_reales(self) -> list:
+        """Los elegidos a mano (real_parcial.bots) más los que pasaron solos por ganar en vivo."""
+        return list(dict.fromkeys(list(self.RP.get("bots") or []) + list(self.e["cuenta_real"].get("auto") or [])))
+
+    def gana_para_real(self, bot) -> bool:
+        """¿Demostró en vivo (práctica + real) que gana lo suficiente para operar con plata real?"""
+        a = self.RP.get("auto") or {}
+        rs = [t["r"] for t in bot["trades"]]
+        return len(rs) >= a.get("min_operaciones", 10) and sum(rs) / len(rs) >= a.get("min_r_promedio", 0.2)
+
+    def _actualizar_reales(self):
+        """Pasa a plata real (solo) a los titulares que ganan en vivo, y devuelve a la demo a los que dejaron de
+        ganar. Todos comparten el mismo capital real y sus frenos: más bots = más operaciones, no más riesgo."""
+        if self.ejecutor_real is None or not (self.RP.get("auto") or {}).get("activo"):
+            return
+        cr = self.e["cuenta_real"]
+        auto = list(cr.get("auto") or [])
+        for bot in self.bots("titular"):
+            if bot["id"] not in auto and bot["id"] not in (self.RP.get("bots") or []) and self.gana_para_real(bot):
+                auto.append(bot["id"])
+                rs = [t["r"] for t in bot["trades"]]
+                self.evento(f"💵⬆️ {bot['id']} ({_moneda(bot['simbolo'])} {bot['tf']}) pasa a operar con PLATA REAL: "
+                            f"{len(rs)} operaciones en vivo con promedio {sum(rs) / len(rs):+.2f}R.")
+        for bid in list(auto):
+            bot = self.e["bots"].get(bid)
+            if bot is None or bot["rol"] != "titular" or not self.gana_para_real(bot):
+                if bot is not None and bot.get("posicion") and bot["posicion"].get("cuenta") == "real":
+                    continue  # que termine su operación real primero
+                auto.remove(bid)
+                if bot is not None:
+                    self.evento(f"💵⬇️ {bid} ({_moneda(bot['simbolo'])} {bot['tf']}) vuelve a la cuenta de práctica: "
+                                "dejó de ganar lo suficiente (o dejó de ser titular).")
+        cr["auto"] = auto
 
     def capital(self) -> float:
         return C.capital_base(float(self.R["capital_inicial"]), self.e["cuenta"]["equity"])
@@ -302,6 +336,7 @@ class Liga:
             if self.elegible(bot):
                 self._ascender(bot, "lugar libre en el equipo titular")
         self._ceder_lugar_a_probadas()
+        self._actualizar_reales()
         self.guardar()
 
     def _r_medio(self, bot) -> float:
@@ -333,7 +368,7 @@ class Liga:
     def _ascender(self, bot, motivo):
         bot["rol"] = "titular"
         bot["titular_desde"] = self.ahora().isoformat(timespec="seconds")
-        for ej in (self.ejecutor, self.ejecutor_real if bot["id"] in (self.RP.get("bots") or []) else None):
+        for ej in (self.ejecutor, self.ejecutor_real if bot["id"] in self.bots_reales() else None):
             if ej is not None:
                 ej.preparar(bot["simbolo"])
         prueba = " 🧪 (en prueba: filtros flojos, solo práctica)" if bot.get("nivel") == "exploracion" else ""
@@ -714,7 +749,7 @@ class Liga:
                   f"jubilados: {len(self.bots('jubilado'))}"]
         if self.ejecutor_real is not None:
             cr = self.e["cuenta_real"]
-            elegidos = ", ".join(self.RP.get("bots") or []) or "ninguno"
+            elegidos = ", ".join(self.bots_reales()) or "ninguno"
             estado_real = ("🔴 apagada: " + cr["apagada"] if cr.get("apagada") else
                            "🟡 freno diario: " + cr["freno_dia"] if cr.get("freno_dia") else
                            "🟡 falta confirmar con /confirmar_real" if not cr.get("confirmado") else "🟢 activa")

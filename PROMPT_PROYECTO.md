@@ -41,7 +41,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 ## Real parcial (preparado el 2/11/2026, apagado hasta que John lo active)
 
-Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la cuenta REAL de Binance; el resto sigue en la demo. Necesita: claves reales `BINANCE_REAL_API_KEY`/`BINANCE_REAL_API_SECRET` (solo futuros, sin retiros, IP 187.77.33.76), `LIVE_TRADING=true`, USDT en la billetera de Futuros real y `/confirmar_real`. Capital propio (`real_parcial.capital`, 50 USDT por defecto → 1% = 0,50 por operación) y frenos propios (diario y total). El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Candidato: XRP 1h (943f10ba0e). Decisión: domingo 8/11 con el informe semanal.
+Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la cuenta REAL de Binance; el resto sigue en la demo. Necesita: claves reales `BINANCE_REAL_API_KEY`/`BINANCE_REAL_API_SECRET` (solo futuros, sin retiros, IP 187.77.33.76), `LIVE_TRADING=true`, USDT en la billetera de Futuros real y `/confirmar_real`. Capital propio (`real_parcial.capital`, 50 USDT por defecto → 1% = 0,50 por operación) y frenos propios (diario y total). El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Activado el 3/11 con XRP 1h (943f10ba0e); primera operación real: +0,94 USDT. Desde el 10/11, pase automático (`real_parcial.auto`): un titular con 10+ operaciones en vivo y promedio ≥ +0,2R pasa solo a plata real, y vuelve a la demo si deja de cumplirlo; todos comparten el capital y los frenos de la cuenta real.
 
 ## Reglas de riesgo (no se tocan)
 
@@ -76,7 +76,7 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 
 - Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
 - Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
-- Tests: 155 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 156 pasan (`cd fabrica && python -m pytest -q`).
 
 ## Próximos pasos
 

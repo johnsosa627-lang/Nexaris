@@ -383,7 +383,7 @@ class Servicio:
         if self.liga.ejecutor_real is not None:
             self.liga.e["cuenta_real"]["confirmado"] = True
             self.liga.guardar()
-            return ("💵 Confirmado: " + ", ".join(self.liga.RP.get("bots") or []) + " opera con PLATA REAL "
+            return ("💵 Confirmado: " + (", ".join(self.liga.bots_reales()) or "los bots que se ganen el lugar") + " opera con PLATA REAL "
                     f"(capital {self.liga.RP.get('capital', 50)} USDT, 1% de riesgo por operación). "
                     "Los demás bots siguen en la cuenta de práctica. Para frenarlo: /pausar")
         if self.liga.modo != "real":
@@ -455,7 +455,7 @@ def main():
         if os.getenv("LIVE_TRADING", "").strip().lower() != "true":
             avisos.append("Hay claves de la cuenta REAL pero falta LIVE_TRADING=true en la configuración: "
                           "por seguridad, ningún bot opera con plata real.")
-        elif not (cfg.get("real_parcial") or {}).get("bots"):
+        elif not ((cfg.get("real_parcial") or {}).get("bots") or ((cfg.get("real_parcial") or {}).get("auto") or {}).get("activo")):
             avisos.append("Hay claves de la cuenta REAL pero ningún bot elegido en config (real_parcial.bots).")
         else:
             ejecutor_real = EjecutorBinance(crear_cliente_privado("real", clave_r, secreto_r),
@@ -483,7 +483,7 @@ def main():
     if modo == "real" and not liga.e["real_confirmado"] and not liga.e["apagado"]:
         tg.enviar("⚠️ Modo REAL: antes de operar con plata de verdad, confirmá con /confirmar_real")
     if ejecutor_real is not None and not liga.e["cuenta_real"].get("confirmado"):
-        tg.enviar("💵 Listo para operar con PLATA REAL solo con: " + ", ".join(cfg["real_parcial"]["bots"]) +
+        tg.enviar("💵 Listo para operar con PLATA REAL solo con: " + (", ".join(liga.bots_reales()) or "los que se lo ganen") +
                   f" (capital {cfg['real_parcial'].get('capital', 50)} USDT). Para activarlo mandá /confirmar_real")
     tg.enviar(f"🤖 Fábrica de bots prendida (modo {modo}).\n" + liga.texto_estado() + "\n\n" + AYUDA)
     servicio.correr()

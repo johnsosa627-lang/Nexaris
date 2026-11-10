@@ -773,3 +773,26 @@ def test_resumen_nocturno_separa_la_cuenta_real(tmp_path):
     texto = liga.texto_noche()
     assert "la cuenta de práctica quedó igual 0.00 dólares con 0" in texto
     assert "💵 Cuenta REAL: +0.94 dólares con 1 operación(es); ahora tiene 50.94" in texto
+
+
+def test_real_parcial_pase_automatico_y_vuelta_a_la_demo(tmp_path):
+    mensajes = []
+    t = {"ahora": 1_700_000_000.0}
+    cfg = cfg_prueba()
+    cfg["real_parcial"] = {"bots": [], "capital": 50, "auto": {"activo": True, "min_operaciones": 10, "min_r_promedio": 0.2}}
+    liga = Liga(cfg, str(tmp_path), MercadoFalso(), EjecutorFalso(), mensajes.append, reloj=lambda: t["ahora"],
+                modo="testnet", ejecutor_real=EjecutorFalso())
+    liga.sincronizar_banco([distinta(1)])
+    liga.completar_titulares()
+    liga.e["cuenta_real"]["confirmado"] = True
+    bot = liga.e["bots"]["bot1"]
+    tr = lambda r: {"r": r, "retorno": r / 100, "pnl_usdt": r, "fecha": "2023-11-14T00:00:00+00:00", "rol": "titular"}
+    bot["trades"] = [tr(1.0)] * 6 + [tr(-1.0)] * 3          # 9 operaciones: todavía no
+    liga.completar_titulares()
+    assert not liga.es_real(bot)
+    bot["trades"].append(tr(1.0))                            # 10 operaciones, promedio +0.4R
+    liga.completar_titulares()
+    assert liga.es_real(bot) and any("pasa a operar con PLATA REAL" in m for m in mensajes)
+    bot["trades"] += [tr(-1.0)] * 4                          # promedio cae a 0.0
+    liga.completar_titulares()
+    assert not liga.es_real(bot) and any("vuelve a la cuenta de práctica" in m for m in mensajes)
