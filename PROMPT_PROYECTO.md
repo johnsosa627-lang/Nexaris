@@ -94,6 +94,14 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 4. **Crecer:** más cuentas de fondeo y quizás el servicio de "probador de estrategias".
 No saltear etapas. Si los datos dicen que no gana, decirlo claro y buscar otro camino.
 
+## Decisión del domingo 22/11/2026 (acordada el 11/11, antes de renovar Hostinger)
+
+Mirar tres números: (1) cuenta de práctica desde el 30/10 (ese día ~94,7; el 11/11 iba 96,5); (2) cuenta REAL (empezó en 50,00; el 11/11 iba 50,94); (3) cuántos bots tienen 5+ operaciones en vivo ganando.
+- 🟢 Práctica y real arriba: seguir y renovar Hostinger por más meses (más barato); con bots de 20–30 operaciones, subir la plata de a poco y considerar riesgo por bot (0,5–1,5%) e interés compuesto (decisión de John).
+- 🟡 Parejas: renovar 1 mes más; faltan datos.
+- 🔴 Las dos claramente abajo: frenar la plata real (/pausar), sacar los USDT y pensar otro camino (otras estrategias o cuenta de fondeo).
+Ojo: en 3 semanas hay pocas operaciones; se decide con señales, no con certezas.
+
 ## Ideas guardadas para más adelante (no ahora)
 
 - **FTMO / MetaTrader** (opción si lo nuestro no funciona en Binance, o para operar más capital): examen pago, reglas de −5% diario y −10% total (parecidas a nuestros frenos; habría que poner el freno total en −10%), bots en MetaTrader 5 (su conexión con Python necesita Windows) y la fábrica aprendiendo con datos de forex/oro.
