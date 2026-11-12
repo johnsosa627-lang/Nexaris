@@ -39,7 +39,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Titulares 🧪 a prueba:** una 🧪 solo sube a titular si practicando como suplente ya gana (5+ operaciones en vivo con promedio de R positivo). Si siendo titular su promedio cae a 0 o menos, vuelve a suplente y sigue practicando; recupera el lugar si mejora (desde el 30/10/2026, después de una semana de pérdidas en la demo).
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
 
-## Real parcial (preparado el 2/11/2026, apagado hasta que John lo active)
+## Plata real: "real parcial" (ACTIVA desde el 3/11/2026)
 
 Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la cuenta REAL de Binance; el resto sigue en la demo. Necesita: claves reales `BINANCE_REAL_API_KEY`/`BINANCE_REAL_API_SECRET` (solo futuros, sin retiros, IP 187.77.33.76), `LIVE_TRADING=true`, USDT en la billetera de Futuros real y `/confirmar_real`. Capital propio (`real_parcial.capital`, 50 USDT por defecto → 1% = 0,50 por operación) y frenos propios (diario y total). El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Activado el 3/11 con XRP 1h (943f10ba0e); primera operación real: +0,94 USDT. Desde el 10/11, pase automático (`real_parcial.auto`): un titular con 10+ operaciones en vivo y promedio ≥ +0,2R pasa solo a plata real, y vuelve a la demo si deja de cumplirlo; todos comparten el capital y los frenos de la cuenta real.
 
@@ -59,31 +59,33 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 
 ## Dónde corre
 
-- Servidor VPS de Hostinger (2 núcleos, 8 GB de RAM), con **Easypanel**: proyecto `orangutanjh`, servicio `fabrica` (también hay n8n).
+- Servidor VPS de Hostinger KVM 2 (2 núcleos, 8 GB, IP 187.77.33.76), con **Easypanel** (entrar desde hPanel → VPS → "Gestionar panel"): proyecto `orangutanjh`, servicio `fabrica`. n8n está apagado (no se usa).
 - Fuente en Easypanel: GitHub `johnsosa627-lang/Nexaris`, rama `main`, ruta `/fabrica`, Dockerfile.
-- Variables de entorno: solo `TELEGRAM_TOKEN=...`. El chat de Telegram ya viene en `config.yaml`; el modo por defecto es papel.
-- Almacenamiento (montaje de volumen): nombre `fabrica-datos`, ruta `/data`.
-- **Para actualizar a la última versión** (Easypanel no vuelve a armar la imagen), en la Consola web de Hostinger (hPanel → VPS → Administrador → Consola web):
+- Variables de entorno (Easypanel → fabrica → Entorno), 7 líneas: `TELEGRAM_TOKEN`, `BINANCE_API_KEY` y `BINANCE_API_SECRET` (cuenta DEMO), `MODO=testnet`, `BINANCE_REAL_API_KEY` y `BINANCE_REAL_API_SECRET` (cuenta REAL: solo futuros, sin retiros, IP restringida), `LIVE_TRADING=true`. Los valores NUNCA se escriben en el repositorio ni en el chat.
+- Almacenamiento (montaje de volumen): `fabrica-datos` → `/data` (datos, banco de estrategias, estado de la liga y operaciones; sobrevive a las actualizaciones).
+- **Para actualizar a la última versión** (Easypanel no vuelve a armar la imagen), en la Consola web de Hostinger (hPanel → VPS → Consola web):
 
   ```
   curl -fsSL https://raw.githubusercontent.com/johnsosa627-lang/Nexaris/main/fabrica/actualizar.sh | bash
   ```
 
-  Trabaja solo en segundo plano y avisa por Telegram si salió bien (✅) o mal (❌).
+  Trabaja solo en segundo plano y avisa por Telegram si salió bien (✅) o mal (❌). No pegarlo mientras corre un ciclo de la fábrica (si pasa, el ciclo se retoma solo).
+- Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
-## Estado actual (octubre 2026)
+## Estado al 12/11/2026
 
-- Funciona 24/7 en **modo simulado (papel)** con 100 USD de mentira.
-- Se corrigió un error grave: la descarga se cortaba en 1000 velas y ahora baja la historia completa. Por eso los primeros ciclos dieron "Inventó 0 estrategias".
+- **Cuenta de práctica (demo de Binance):** 98,93 USDT (arrancó en 100; mínimo ~91,9 el 5/11). 7 titulares y 23 suplentes.
+- **Cuenta REAL:** 52,03 USDT (arrancó en 50,00 el 3/11). Bot con plata real: XRP 1h `943f10ba0e`. 3 operaciones reales, las 3 ganadas (+0,94, +0,53, +0,56).
+- Plata de John en Binance (real): ~50 USDT en Futuros (los usa el sistema), ~50 USDT en Spot y ~35 TRX (no los toca el sistema).
 - Tests: 156 pasan (`cd fabrica && python -m pytest -q`).
+- Problemas ya resueltos que pueden volver: Telegram cortando las esperas largas (ahora pasa solo a conexiones cortas); ciclo cortado por una actualización (se retoma solo); caída del servidor por memoria (n8n apagado; el ciclo usa un proceso nuevo por moneda).
 
 ## Próximos pasos
 
-1. ✅ Hecho (octubre 2026): identidad verificada en Binance, claves de Demo Trading creadas y `MODO=testnet` funcionando (5.000 USDT de práctica en la billetera de Futuros de la demo).
-2. Dejar trabajar el sistema varias semanas en la demo y mirar los resúmenes (/bots, /diagnostico, /graduacion).
-   - ✅ Hecho el 26/10: (a) la fábrica busca el doble de candidatas en velas de 15 minutos y les pide operar más seguido (300 operaciones/año); (b) hasta 2 titulares por moneda si son distintos, con una sola posición abierta por moneda a la vez. El riesgo por operación sigue en 1%.
-3. Solo si gana de forma constante y el examen de graduación está todo en ✅: pasar a plata real con 100 USD, con permiso doble.
+1. ✅ Demo de Binance (octubre) y ✅ plata real chica con 50 USDT (desde el 3/11).
+2. **Domingo 22/11:** decisión con las reglas de abajo (y renovar Hostinger antes de que venza).
+3. Con bots de 20–30 operaciones en vivo: comparar real contra práctica (precios, comisiones), y recién ahí subir la plata de a poco (50 → 100 → 200) y considerar riesgo por bot e interés compuesto.
 4. Opcional, por seguridad: cambiar el token del bot en BotFather y la contraseña de Easypanel (estuvieron visibles en fotos).
 
 ## Plan acordado (31/10/2026): de la demo a la cuenta de fondeo
@@ -110,9 +112,17 @@ Ojo: en 3 semanas hay pocas operaciones; se decide con señales, no con certezas
 - **"Te pruebo tu estrategia":** vender por Telegram informes del probador anti-suerte para la estrategia que pida el cliente (sin manejar plata ni claves de nadie; consultar con un contador antes de cobrar).
 - **Oro, Nasdaq y acciones:** necesitan años de historia y otro bróker para acciones.
 
+## Cómo trabajamos (para la IA que me ayude)
+
+- Yo (John) mando fotos de Telegram (/estado, /bots, /informe, /fabrica, /salud, /diagnostico y el resumen de las 22 h). La IA las lee, explica en simple, **detecta cualquier cosa rara** y, si es un error del sistema, lo arregla en el código, corre los tests, sube el cambio (rama de trabajo → pull request → merge a `main`) y me da el comando de actualización.
+- La IA no ve el servidor ni Telegram directamente: solo lo que le mando. Para diagnosticar me pide comandos para la Consola web.
+- Ser proactiva: proponer mejoras basadas en los datos, pero de a una y midiendo antes de cambiar más.
+- Cuidado con estafas: trading de redes sociales, opciones binarias (IQ Option, Pocket Option), "señales" y "IA que gana sola". Avisarme.
+
 ## Reglas para la IA que me ayude
 
 - Nunca publicar tokens, claves ni contraseñas en el código ni en GitHub (el repositorio es público).
 - No sacar las protecciones ni bajar la exigencia de los exámenes para que opere más.
 - No operar ni mover plata por mí.
 - Probar todo con los tests antes de subir cambios.
+- Nunca subir la plata real ni el riesgo sin que yo lo decida; nunca habilitar retiros en las claves.
