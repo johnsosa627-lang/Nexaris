@@ -73,10 +73,12 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
-## Estado al 12/11/2026
+## Estado al 15/11/2026
 
-- **Cuenta de práctica (demo de Binance):** 98,93 USDT (arrancó en 100; mínimo ~91,9 el 5/11). 7 titulares y 23 suplentes.
-- **Cuenta REAL:** 52,03 USDT (arrancó en 50,00 el 3/11). Bot con plata real: XRP 1h `943f10ba0e`. 3 operaciones reales, las 3 ganadas (+0,94, +0,53, +0,56).
+- **Cuenta de práctica (demo de Binance):** 102,74 USDT (arrancó en 100; mínimo ~91,9 el 5/11). Semana del 8 al 15/11: titulares +12,22 USDT. 7 titulares y ~29 suplentes. Banco: 276 estrategias. Examen de graduación: 4 de 5 ✅ (falta un bot con 30+ operaciones ganando; el que más tiene lleva 10).
+- **Cuenta REAL:** 52,47 USDT (arrancó en 50,00 el 3/11). Bot con plata real: XRP 1h `943f10ba0e`. 4 operaciones reales, las 4 ganadas (todas ventas en corto de XRP en un mercado bajista: falta ver cómo le va cuando el mercado cambie).
+- Mercado: miedo extremo (10/100) a mediados de noviembre, Bitcoin ~76.000, secuelas del hackeo de Binance.
+- Idea de John para el 22/11 si sigue 🟢: subir la plata real a 80 USDT (él pasa 30 USDT más a Futuros; se cambia `real_parcial.capital` a 80).
 - Plata de John en Binance (real): ~50 USDT en Futuros (los usa el sistema), ~50 USDT en Spot y ~35 TRX (no los toca el sistema).
 - Tests: 156 pasan (`cd fabrica && python -m pytest -q`).
 - Problemas ya resueltos que pueden volver: Telegram cortando las esperas largas (ahora pasa solo a conexiones cortas); ciclo cortado por una actualización (se retoma solo); caída del servidor por memoria (n8n apagado; el ciclo usa un proceso nuevo por moneda).
