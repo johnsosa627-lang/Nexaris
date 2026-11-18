@@ -640,6 +640,8 @@ class Liga:
                            "modo": "real" if real else self.modo if en_exchange else "papel",
                            **({"cuenta": "real"} if real else {}),
                            "abierta_ts": int(self.reloj() * 1000), "velas": 0,
+                           # precio de la señal (cierre de la vela): para medir cuánto peor se entró en Binance
+                           "senal": float(vela["close"]),
                            "abierta": self.ahora().isoformat(timespec="seconds"), **niv}
         if bot["rol"] == "titular":
             if en_exchange:
@@ -672,6 +674,9 @@ class Liga:
         trade = {"fecha": self.ahora().isoformat(timespec="seconds"), "rol": bot["rol"], "lado": pos["lado"],
                  "entrada": pos["entrada"], "salida": salida, "cantidad": pos["cantidad"], "r": r,
                  "retorno": r * self.riesgo_frac, "pnl_usdt": pnl, "motivo": motivo, "modo": pos.get("modo", "papel")}
+        if pos.get("senal") and pos.get("modo", "papel") != "papel":
+            # deslizamiento de entrada en % (positivo = entró peor que el precio de la señal)
+            trade["desliz_pct"] = round(pos["lado"] * (pos["entrada"] - pos["senal"]) / pos["senal"] * 100, 4)
         bot["trades"].append(trade)
         bot["posicion"] = None
         self._csv(bot, trade)
@@ -892,6 +897,22 @@ class Liga:
                           "el sistema nunca cambia de modo solo).")
         return "\n".join(lineas)
 
+    def _texto_ejecucion(self) -> list:
+        """Real contra práctica: ¿en Binance se entra al precio que suponen las pruebas?"""
+        lineas = []
+        previsto = self.slippage * 100
+        for nombre, modos in (("💵 Plata real", ("real",)), ("Demo de Binance", ("testnet",))):
+            d = [t["desliz_pct"] for b in self.bots() for t in b["trades"]
+                 if t.get("modo") in modos and t.get("desliz_pct") is not None]
+            if not d:
+                continue
+            prom = sum(d) / len(d)
+            juicio = ("✅ como en las pruebas" if prom <= previsto * 1.5 else
+                      "⚠️ peor que en las pruebas: las ganancias reales van a ser algo menores")
+            lineas.append(f"Ejecución ({nombre}, {len(d)} entradas): deslizamiento promedio {prom:+.3f}% "
+                          f"(las pruebas suponen {previsto:.3f}%) {juicio}.")
+        return lineas
+
     def texto_semana(self) -> str:
         desde = datetime.fromtimestamp(self.reloj() - 7 * 86400, tz=timezone.utc).isoformat(timespec="seconds")
         lineas = ["📰 INFORME SEMANAL"]
@@ -907,6 +928,7 @@ class Liga:
                 lineas.append(f"• {b['id']} ({como}, {_moneda(b['simbolo'])} {b['tf']}): {n} operaciones, "
                               f"{g} ganadas, {r:+.1f}R")
         lineas.insert(1, f"Resultado de los titulares en 7 días: {total:+.2f} USDT. Cuenta: {self.e['cuenta']['equity']:.2f} USDT.")
+        lineas += self._texto_ejecucion()
         hechos = [e["texto"].split("\n")[0] for e in self.e["eventos"] if e["fecha"] >= desde
                   and e["texto"][:2] in ("⬆️", "👴", "🔄", "🧯", "🛑", "🆕")]
         lineas.append("Cambios en la liga:" if hechos else "Sin cambios en la liga esta semana.")

@@ -796,3 +796,23 @@ def test_real_parcial_pase_automatico_y_vuelta_a_la_demo(tmp_path):
     bot["trades"] += [tr(-1.0)] * 4                          # promedio cae a 0.0
     liga.completar_titulares()
     assert not liga.es_real(bot) and any("vuelve a la cuenta de práctica" in m for m in mensajes)
+
+
+def test_informe_compara_ejecucion_real_contra_las_pruebas(tmp_path):
+    real = EjecutorFalso()
+    t = {"ahora": 1_700_000_000.0}
+    cfg = cfg_prueba()
+    cfg["real_parcial"] = {"bots": ["bot1"], "capital": 50}
+    liga = Liga(cfg, str(tmp_path), MercadoFalso(), EjecutorFalso(), lambda m: None, reloj=lambda: t["ahora"],
+                modo="testnet", ejecutor_real=real)
+    liga.sincronizar_banco([distinta(1)])
+    liga.completar_titulares()
+    liga.e["cuenta_real"]["confirmado"] = True
+    bot = liga.e["bots"]["bot1"]
+    real.precio_actual = 100.1                       # Binance llena un poco peor que el cierre de la vela (100)
+    liga._abrir(bot, 1, 0.5, {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100})
+    liga._cerrar(bot, "prueba")
+    tr = bot["trades"][-1]
+    assert tr["modo"] == "real" and abs(tr["desliz_pct"] - 0.1) < 1e-9
+    texto = liga.texto_semana()
+    assert "Ejecución (💵 Plata real, 1 entradas)" in texto and "peor que en las pruebas" in texto
