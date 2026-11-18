@@ -12,6 +12,7 @@ Las operaciones abiertas no se tocan: siguen protegidas por su stop-loss.
 """
 import json
 import logging
+import os
 import re
 import time
 import xml.etree.ElementTree as ET
@@ -26,9 +27,14 @@ URL_CALENDARIO = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 URL_MIEDO_CODICIA = "https://api.alternative.me/fng/?limit=1"
 
 
+PLAZOS_HORAS = (1, 4, 24)
+MAX_REGISTRO = 3000   # ~1 MB como mucho: unos años de noticias
+
+
 class Radar:
     def __init__(self, cfg: dict, estado: dict, mercado, enviar: Callable[[str], None],
-                 reloj: Callable[[], float] = time.time, http_get: Callable = requests.get):
+                 reloj: Callable[[], float] = time.time, http_get: Callable = requests.get,
+                 carpeta: Optional[str] = None):
         self.C = cfg["radar"]
         self.e = estado.setdefault("radar", {})  # se guarda dentro del estado de la liga
         self.e.setdefault("hasta", 0)
@@ -39,6 +45,16 @@ class Radar:
         self.reloj = reloj
         self.get = http_get
         self._cache = {}
+        # Registro de noticias: qué pasó con el precio de Bitcoin 1, 4 y 24 horas después de cada una.
+        # Solo anota (no cambia cómo se opera): sirve para ver más adelante si hay un patrón que valga la pena.
+        self.ruta_registro = os.path.join(carpeta, "noticias.json") if carpeta else None
+        self.registro = []
+        if self.ruta_registro and os.path.exists(self.ruta_registro):
+            try:
+                with open(self.ruta_registro, encoding="utf-8") as f:
+                    self.registro = json.load(f)
+            except (OSError, ValueError):
+                self.registro = []
 
     # ------------------------------------------------------------------ utilidades
     def bloqueo(self) -> Optional[str]:
@@ -69,8 +85,83 @@ class Radar:
         self._cache[url] = (self.reloj(), r.text)
         return r.text
 
+    # ------------------------------------------------------------------ registro de noticias
+    def _precio_btc(self) -> Optional[float]:
+        try:
+            return float(self.mercado.precio("BTC/USDT:USDT"))
+        except Exception:  # noqa: BLE001 - sin precio no se anota nada
+            return None
+
+    def _anotar(self, clave: str, tipo: str, titulo: str):
+        """Anota una noticia (una sola vez) con el precio de Bitcoin en ese momento."""
+        if self.ruta_registro is None or any(r["clave"] == clave for r in self.registro[-500:]):
+            return
+        precio = self._precio_btc()
+        if precio is None:
+            return
+        self.registro.append({"clave": clave, "ts": int(self.reloj()), "tipo": tipo, "titulo": titulo[:160],
+                              "btc": precio})
+        self.registro = self.registro[-MAX_REGISTRO:]
+        self._guardar_registro()
+
+    def _seguimiento(self):
+        """Completa cuánto se movió Bitcoin 1, 4 y 24 horas después de cada noticia anotada."""
+        if not self.registro:
+            return
+        ahora, cambio, precio = self.reloj(), False, None
+        for r in self.registro:
+            for horas in PLAZOS_HORAS:
+                campo = f"mov_{horas}h"
+                if campo in r or ahora - r["ts"] < horas * 3600:
+                    continue
+                if ahora - r["ts"] > horas * 3600 + 2 * 3600:
+                    r[campo] = None  # el sistema estaba apagado justo en ese momento: sin dato
+                else:
+                    precio = precio if precio is not None else self._precio_btc()
+                    if precio is None:
+                        return
+                    r[campo] = round((precio - r["btc"]) / r["btc"] * 100, 2)
+                cambio = True
+        if cambio:
+            self._guardar_registro()
+
+    def _guardar_registro(self):
+        try:
+            os.makedirs(os.path.dirname(self.ruta_registro), exist_ok=True)
+            tmp = self.ruta_registro + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(self.registro, f, ensure_ascii=False)
+            os.replace(tmp, self.ruta_registro)
+        except OSError as e:
+            log.warning("Radar: no pude guardar el registro de noticias: %s", e)
+
+    def texto_noticias(self) -> str:
+        """Resumen del registro: después de cada tipo de noticia, ¿Bitcoin subió o bajó?"""
+        if not self.registro:
+            return ("🗞 Registro de noticias: todavía vacío. Cada noticia importante queda anotada con lo que hizo "
+                    "Bitcoin 1, 4 y 24 horas después.")
+        lineas = [f"🗞 Registro de noticias: {len(self.registro)} anotadas desde "
+                  f"{datetime.fromtimestamp(self.registro[0]['ts'], tz=timezone.utc).strftime('%d/%m')}.",
+                  "Qué hizo Bitcoin después (promedio y cuántas veces subió):"]
+        for tipo in sorted({r["tipo"] for r in self.registro}):
+            partes = []
+            for horas in PLAZOS_HORAS:
+                movs = [r[f"mov_{horas}h"] for r in self.registro
+                        if r["tipo"] == tipo and r.get(f"mov_{horas}h") is not None]
+                if movs:
+                    subio = sum(m > 0 for m in movs)
+                    partes.append(f"{horas}h: {sum(movs) / len(movs):+.2f}% (subió {subio} de {len(movs)})")
+            n = sum(r["tipo"] == tipo for r in self.registro)
+            lineas.append(f"• {tipo} ({n}): " + (" · ".join(partes) if partes else "esperando datos"))
+        lineas.append("Con pocas noticias no hay conclusión: hacen falta decenas por tipo para ver un patrón.")
+        return "\n".join(lineas)
+
     # ------------------------------------------------------------------ revisión
     def revisar(self):
+        try:
+            self._seguimiento()
+        except Exception as e:  # noqa: BLE001 - el registro nunca frena al radar
+            log.warning("Radar (registro): %s", e)
         for nombre, paso in (("calendario", self._calendario), ("bitcoin", self._volatilidad),
                              ("noticias", self._noticias), ("miedo", self._miedo_codicia)):
             if not self.C.get(nombre, True):
@@ -100,6 +191,8 @@ class Radar:
                                      f"📅 A las {hora} sale un dato económico fuerte de EE.UU.: «{titulo}». "
                                      f"Suele mover mucho el precio, así que pauso las entradas nuevas desde "
                                      f"{self.C['minutos_antes']} min antes hasta {self.C['minutos_despues']} min después.")
+            if cuando <= ahora < hasta:
+                self._anotar(clave, "dato económico EE.UU.", titulo)
             if desde <= ahora < hasta:
                 self._pausar(0, f"dato económico de EE.UU. «{titulo}»", hasta=hasta)
                 self._avisar_una_vez(clave + "-pausa", f"⏸ Pausa por el dato «{titulo}». Las operaciones abiertas siguen con su stop.")
@@ -130,6 +223,11 @@ class Radar:
                 if fecha and self.reloj() - fecha > 3 * 3600:
                     continue  # solo noticias de las últimas 3 horas
                 texto = titulo.lower()
+                grave = any(_contiene(texto, p) for p in graves)
+                if grave or any(_contiene(texto, p) for p in importantes):
+                    tipo = ("noticia grave (pausa)" if grave and self._afecta_mercado(texto) else
+                            "noticia grave (puntual)" if grave else "noticia importante")
+                    self._anotar(f"news-{enlace}", tipo, titulo)
                 if any(_contiene(texto, p) for p in graves) and self._afecta_mercado(texto):
                     self._pausar(self.C["pausa_noticia_grave_min"], f"noticia grave: {titulo[:80]}")
                     self._avisar_una_vez(f"news-{enlace}", f"🚨 Noticia grave: {titulo}\n{enlace}\n"

@@ -61,7 +61,7 @@ class Servicio:
         self.radar = None
         if cfg.get("radar", {}).get("activo"):
             from .radar import Radar
-            self.radar = Radar(cfg, self.liga.e, mercado, enviar, reloj)
+            self.radar = Radar(cfg, self.liga.e, mercado, enviar, reloj, carpeta=self.liga.carpeta)
 
     # ------------------------------------------------------------------ bucle
     def paso(self):
@@ -326,6 +326,7 @@ class Servicio:
         tg.registrar("/diagnostico", self.cmd_diagnostico)
         tg.registrar("/graduacion", lambda a: self.liga.texto_preparacion())
         tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
+        tg.registrar("/noticias", lambda a: self.radar.texto_noticias() if self.radar else "El radar externo está apagado.")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
 
@@ -396,6 +397,7 @@ class Servicio:
 AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/hoy — resultado de hoy\n"
          "/bots — titulares y suplentes\n/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
+         "/noticias — qué hizo Bitcoin después de cada tipo de noticia (registro)\n"
          "/ciclo — correr la fábrica ahora (inventar y examinar estrategias)\n"
          "/salud — chequeo: ¿datos completos? ¿la fábrica trabaja? ¿hay disco?\n"
          "/diagnostico — ¿hubo señales que no se operaron? (revisa cada bot)\n"

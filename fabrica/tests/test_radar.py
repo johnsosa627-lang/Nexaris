@@ -135,3 +135,35 @@ def test_la_liga_no_abre_titulares_durante_la_pausa_del_radar(tmp_path):
     assert tit["posicion"] is None and sup["posicion"] is not None  # los suplentes siguen practicando
     t["ahora"] += 601
     assert liga.puede_operar() is None
+
+
+def test_registro_de_noticias_anota_y_sigue_el_precio(tmp_path):
+    ahora = _ts("2026-10-13T14:30:00")
+    cfg = cargar_config()
+    for k in ("calendario", "bitcoin", "miedo"):
+        cfg["radar"][k] = False
+    precio = {"btc": 100.0}
+
+    class Merc(MercadoBTC):
+        def precio(self, simbolo):
+            return precio["btc"]
+    t = {"ahora": ahora}
+    r = Radar(cfg, {}, Merc(velas_btc(0, ahora)), lambda m: None, reloj=lambda: t["ahora"], http_get=http(50),
+              carpeta=str(tmp_path))
+    r.revisar()
+    assert r.registro and all(x["btc"] == 100.0 for x in r.registro)
+    n = len(r.registro)
+    r.revisar()                                      # no se anota dos veces lo mismo
+    assert len(r.registro) == n
+    precio["btc"], t["ahora"] = 98.0, ahora + 3600 + 60
+    r.revisar()
+    assert r.registro[0]["mov_1h"] == -2.0 and "mov_4h" not in r.registro[0]
+    t["ahora"] = ahora + 25 * 3600                   # estuvo apagado a las 4 h: sin dato, pero sí a las 24 h
+    r.revisar()
+    assert r.registro[0]["mov_4h"] is None and r.registro[0]["mov_24h"] == -2.0
+    # se guarda en disco y se recupera al reiniciar
+    r2 = Radar(cfg, {}, Merc(velas_btc(0, ahora)), lambda m: None, reloj=lambda: t["ahora"], http_get=http(50),
+               carpeta=str(tmp_path))
+    assert len(r2.registro) == n
+    texto = r2.texto_noticias()
+    assert "Registro de noticias" in texto and "1h: -2.00% (subió 0 de" in texto
