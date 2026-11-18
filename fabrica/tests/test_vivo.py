@@ -82,6 +82,7 @@ def test_suplente_en_vivo_hace_lo_mismo_que_el_backtest(tmp_path):
     {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "ninguno", "tp": 0.0, "trailing": 0.0, "max_velas": 0,
      "salida_contraria": True},
     {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "atr", "tp": 6.0, "trailing": 0.0, "max_velas": 0, "breakeven": 1.0},
+    {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "atr", "tp": 6.0, "trailing": 3.0, "max_velas": 0, "parcial": 1.5},
 ])
 def test_stop_rango_y_salida_contraria_en_vivo_igual_que_el_backtest(tmp_path, salidas):
     est = {"lado": "ambos", "reglas": [{"tipo": "ruptura_donchian", "n": 20}], "salidas": salidas}
@@ -817,3 +818,26 @@ def test_informe_compara_ejecucion_real_contra_las_pruebas(tmp_path):
     assert tr["modo"] == "real" and abs(tr["desliz_pct"] - 0.1) < 1e-9
     texto = liga.texto_semana()
     assert "Ejecución (💵 Plata real, 1 entradas)" in texto and "peor que en las pruebas" in texto
+
+
+def test_salida_parcial_en_binance(tmp_path):
+    ej = EjecutorFalso()
+    cierres = []
+    ej.cerrar_parcial = lambda s, lado, q: (cierres.append(q), ej.precio_actual)[1]
+    t = {"ahora": 1_700_000_000.0}
+    liga = Liga(cfg_prueba(capital=100), str(tmp_path), MercadoFalso(), ej, lambda m: None, reloj=lambda: t["ahora"],
+                modo="testnet")
+    est = {**TENDENCIA, "salidas": {**TENDENCIA["salidas"], "trailing": 0.0, "parcial": 1.0}}
+    liga.sincronizar_banco([registro(1, estrategia=est)])
+    liga.completar_titulares()
+    bot = liga.e["bots"]["bot1"]
+    liga._abrir(bot, 1, 0.5, {"ts": 0, "open": 100, "high": 100.5, "low": 99.5, "close": 100})
+    pos = bot["posicion"]
+    total, nivel = pos["cantidad"], pos["parcial"]
+    ej.precio_actual = nivel + 0.01
+    liga.vigilar()                                    # el precio llegó a la parcial: cierra la mitad
+    assert cierres and abs(pos["cantidad"] + cierres[0] - total) < 1e-9 and pos["parcial_hecha"]
+    assert pos["stop"] > pos["entrada"] and pos["realizado_usdt"] > 0
+    assert any(o[0] == "mover" for o in ej.ordenes)  # stop y toma de ganancia nuevos para lo que queda
+    liga.vigilar()
+    assert len(cierres) == 1                          # una sola vez

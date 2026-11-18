@@ -67,19 +67,40 @@ def niveles(salidas: dict, lado: int, entrada: float, atr: float, dist_rango: Op
     niv = {"stop": entrada - lado * dist, "tp": tp, "dist": dist, "trail": trail, "stop_movido": False}
     if salidas.get("breakeven"):
         niv["be"] = float(salidas["breakeven"]) * dist  # cuánto a favor para pasar el stop a la entrada
+    if salidas.get("parcial"):
+        nivel = entrada + lado * float(salidas["parcial"]) * dist
+        if tp is None or (nivel - tp) * lado < 0:  # solo si queda antes de la toma de ganancia
+            niv["parcial"] = nivel                     # precio donde se cierra la mitad
     return niv
 
 
-def revisar_vela(pos: dict, vela: dict, slip_stop: float) -> Optional[Tuple[float, str]]:
-    """¿La vela tocó el stop o el take-profit? Devuelve (precio bruto de salida, motivo) o None."""
+def parcial_simulada(pos: dict, precio_bruto: float, slippage: float, comision: float):
+    """Cierra la mitad (simulado) al `precio_bruto` y pasa el stop a la entrada, como las pruebas."""
+    lado, entrada = pos["lado"], pos["entrada"]
+    sp = precio_bruto * (1 - slippage * lado)
+    pos["realizado_u"] = 0.5 * (lado * (sp - entrada) - comision * (entrada + sp))
+    pos["rem"] = 0.5
+    pos["parcial_hecha"] = True
+    nivel = entrada * (1 + lado * 2 * comision)
+    if (nivel - pos["stop"]) * lado > 0:
+        pos["stop"], pos["stop_movido"] = nivel, True
+
+
+def revisar_vela(pos: dict, vela: dict, slip_stop: float, slippage: float = 0.0002,
+                 comision: float = 0.0005) -> Optional[Tuple[float, str]]:
+    """¿La vela tocó el stop, la salida parcial o el take-profit? (mismo orden que las pruebas).
+    Devuelve (precio bruto de salida, motivo) o None. La salida parcial modifica `pos` y no cierra."""
     lado, stop, tp = pos["lado"], pos["stop"], pos.get("tp")
     o, h, l = vela["open"], vela["high"], vela["low"]
     motivo_stop = "stop móvil" if pos.get("stop_movido") else "stop-loss"
+    nivel = pos.get("parcial") if not pos.get("parcial_hecha") else None
     if lado == 1:
         if o <= stop:
             return o, motivo_stop
         if l <= stop:
             return stop * (1 - slip_stop), motivo_stop
+        if nivel is not None and h >= nivel:
+            parcial_simulada(pos, max(nivel, o), slippage, comision)
         if tp is not None and o >= tp:
             return o, "take-profit"
         if tp is not None and h >= tp:
@@ -89,6 +110,8 @@ def revisar_vela(pos: dict, vela: dict, slip_stop: float) -> Optional[Tuple[floa
             return o, motivo_stop
         if h >= stop:
             return stop * (1 + slip_stop), motivo_stop
+        if nivel is not None and l <= nivel:
+            parcial_simulada(pos, min(nivel, o), slippage, comision)
         if tp is not None and o <= tp:
             return o, "take-profit"
         if tp is not None and l <= tp:
@@ -125,7 +148,8 @@ def resultado(pos: dict, precio_bruto: float, comision: float, slippage: float, 
     """Resultado de cerrar `pos` al `precio_bruto` (aplica slippage y comisiones como el backtest)."""
     lado = pos["lado"]
     salida = precio_bruto * (1 - slippage * lado)
-    pnl_u = lado * (salida - pos["entrada"]) - comision * (pos["entrada"] + salida)
+    pnl_u = pos.get("realizado_u", 0.0) + pos.get("rem", 1.0) * (
+        lado * (salida - pos["entrada"]) - comision * (pos["entrada"] + salida))
     r = pnl_u / pos["dist"]
     cantidad = pos.get("cantidad")
     return {"salida": salida, "r": r, "retorno": r * riesgo_frac,

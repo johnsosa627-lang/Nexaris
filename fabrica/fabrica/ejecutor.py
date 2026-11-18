@@ -178,6 +178,12 @@ class EjecutorBinance:
         self.cancelar_protecciones(simbolo)
         return self.proteger(simbolo, lado, cantidad, stop, tp)
 
+    def cerrar_parcial(self, simbolo: str, lado: int, cantidad: float) -> float:
+        """Cierra `cantidad` de la posición a mercado (solo reduce). Devuelve el precio promedio."""
+        orden = self.cliente.create_order(simbolo, "market", _lado_orden(lado, cerrar=True), cantidad, None,
+                                          {"reduceOnly": True})
+        return float(orden.get("average") or self.precio(simbolo))
+
     def cerrar(self, simbolo: str, pos: dict) -> Tuple[float, float]:
         actual = self.posicion(simbolo)
         precio_orden = None
@@ -209,4 +215,4 @@ class EjecutorBinance:
             time.sleep(1 + intento)
         salida = float(precio_estimado or self.precio(simbolo))
         pnl = pos["lado"] * (salida - pos["entrada"]) * pos["cantidad"] - self.comision * (pos["entrada"] + salida) * pos["cantidad"]
-        return salida, pnl
+        return salida, pnl + pos.get("realizado_usdt", 0.0)  # más lo cobrado en una salida parcial
