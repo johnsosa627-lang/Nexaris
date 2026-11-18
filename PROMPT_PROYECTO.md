@@ -106,9 +106,20 @@ Mirar tres números: (1) cuenta de práctica desde el 30/10 (ese día ~94,7; el 
 - 🔴 Las dos claramente abajo: frenar la plata real (/pausar), sacar los USDT y pensar otro camino (otras estrategias o cuenta de fondeo).
 Ojo: en 3 semanas hay pocas operaciones; se decide con señales, no con certezas.
 
+## Meta: ganar 3.000 USD por mes con cuentas de fondeo (acordada el 18/11/2026)
+
+Cuentas: con un mes bueno (+5%) hace falta operar ~60.000–75.000 USD; la empresa de fondeo se queda con 10–20% de la ganancia. No es para este mes: es un plan de varios meses y depende de que el sistema siga ganando.
+
+1. **Ahora → fin de noviembre:** el bot real (XRP 1h) y los que pasen solos junten operaciones reales; el 22/11 decidir 🟢/🟡/🔴 y, si 🟢, subir la plata real a 80 USD.
+2. **Diciembre — elegir la empresa:** una que permita bots por API en cripto. Candidata: **HyroTrader** (bots propios por API en una cuenta demo de **Bybit**; prohíbe alta frecuencia y sistemas comprados). Otras a revisar: Crypto Fund Trader, BrightFunded, Velotrade (API en cuentas fondeadas). Leer el reglamento vigente antes de pagar (cambian seguido; no hay ninguna confirmada con Binance).
+3. **Adaptar el sistema:** conectar Bybit (ccxt ya lo soporta), frenos con los límites exactos de la empresa (nuestro −3% diario ya es más estricto que su −5%; el freno total pasa de −15% a su límite, p. ej. −10%), y un modo "examen" que avise cuánto falta para la meta del examen.
+4. **Primer examen: cuenta de 10.000 USD** (costo bajo). Si aprueba: ~+400 USD/mes en un mes bueno.
+5. **Escalar:** cuentas de 50.000–100.000 USD (varias empresas suben el tamaño si se gana parejo) → ~2.000–4.500 USD/mes en un mes bueno.
+Riesgo: lo máximo que se pierde en cada intento es lo que cuesta el examen.
+
 ## Ideas guardadas para más adelante (no ahora)
 
-- **FTMO / MetaTrader** (opción si lo nuestro no funciona en Binance, o para operar más capital): examen pago, reglas de −5% diario y −10% total (parecidas a nuestros frenos; habría que poner el freno total en −10%), bots en MetaTrader 5 (su conexión con Python necesita Windows) y la fábrica aprendiendo con datos de forex/oro.
+- **FTMO / MetaTrader** (alternativa a las empresas de fondeo cripto con API; ver la meta de 3.000 USD/mes): examen pago, reglas de −5% diario y −10% total (parecidas a nuestros frenos; habría que poner el freno total en −10%), bots en MetaTrader 5 (su conexión con Python necesita Windows) y la fábrica aprendiendo con datos de forex/oro.
 - **Piezas nuevas para la fábrica:** interés abierto y liquidaciones de Binance.
 - **Salidas parciales:** cerrar la mitad en ganancia y dejar correr el resto.
 - **"Te pruebo tu estrategia":** vender por Telegram informes del probador anti-suerte para la estrategia que pida el cliente (sin manejar plata ni claves de nadie; consultar con un contador antes de cobrar).
