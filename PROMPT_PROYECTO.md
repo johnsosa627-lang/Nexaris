@@ -105,6 +105,7 @@ Mirar tres números: (1) cuenta de práctica desde el 30/10 (ese día ~94,7; el 
 - 🟡 Parejas: renovar 1 mes más; faltan datos.
 - 🔴 Las dos claramente abajo: frenar la plata real (/pausar), sacar los USDT y pensar otro camino (otras estrategias o cuenta de fondeo).
 Ojo: en 3 semanas hay pocas operaciones; se decide con señales, no con certezas.
+También el 22/11 (acordado el 18/11): sumar 5 monedas grandes (p. ej. TRX, DOT, SUI, TON, NEAR; verificar que tengan futuros USDT-M, volumen e historia desde 2021 o la mayor posible) → de 10 a 15 monedas. No "todas las monedas" (las chicas se manipulan y no tienen historia) ni operaciones para ganar centavos (las comisiones se las comen). Vigilar memoria del servidor en el primer ciclo con 15.
 
 ## Meta: ganar 3.000 USD por mes con cuentas de fondeo (acordada el 18/11/2026)
 
