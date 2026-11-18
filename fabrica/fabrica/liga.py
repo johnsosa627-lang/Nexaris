@@ -599,7 +599,7 @@ class Liga:
                 self._cerrar_simulado(bot, *tocado)
                 return
         stop_antes = pos["stop"]
-        if cierre_de_vela(pos, vela, bot["estrategia"]["salidas"].get("max_velas", 0)) == "tiempo":
+        if cierre_de_vela(pos, vela, bot["estrategia"]["salidas"].get("max_velas", 0), self.comision) == "tiempo":
             self._cerrar(bot, "tiempo", precio_simulado=vela["close"])
         elif ej is not None and pos["stop"] != stop_antes:
             errores = ej.mover_stop(bot["simbolo"], pos["lado"], pos["cantidad"], pos["stop"], pos.get("tp"))
