@@ -95,6 +95,8 @@ FAMOSAS = [
     # Gestión clásica de los profesionales: asegurar la operación pasando el stop a la entrada al ir +1R
     {"famosa": "Tortugas 20 con stop a punto de equilibrio en +1R", "lado": "ambos",
      "reglas": [{"tipo": "ruptura_donchian", "n": 20}], "salidas": {**_s("atr", 2.0, trailing=3.0), "breakeven": 1.0}},
+    {"famosa": "Supertrend con media salida en +1,5R y el resto con stop móvil", "lado": "ambos",
+     "reglas": [{"tipo": "cambio_supertrend", "n": 10, "k": 3.0}], "salidas": {**_s("atr", 2.0, trailing=3.0), "parcial": 1.5}},
 ]
 
 

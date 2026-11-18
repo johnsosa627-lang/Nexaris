@@ -41,6 +41,7 @@ class Salidas:
     max_velas: int = 0         # salida por tiempo (0 = sin límite)
     salida_contraria: bool = False  # salir si aparece la señal opuesta (la aplica quien arma las señales)
     breakeven: float = 0.0     # al cerrar una vela con ganancia de N veces lo arriesgado, el stop pasa a la entrada (0 = no)
+    parcial: float = 0.0       # al tocar N veces lo arriesgado a favor se cierra la MITAD y el stop pasa a la entrada (0 = no)
 
     def validar(self):
         if self.stop_tipo not in ("pct", "atr", "rango") or not self.stop or self.stop <= 0:
@@ -65,16 +66,17 @@ class Costos:
 
 
 @njit(cache=True)
-def _cerrar(precio, lado, entrada, dist, nocional, fund_u, comision, slippage):
+def _cerrar(precio, lado, entrada, dist, nocional, fund_u, comision, slippage, rem, realizado):
+    """Cierra lo que queda (`rem`, 1 = toda la posición) y suma lo ya cobrado en una salida parcial."""
     salida = precio * (1.0 - slippage * lado)
-    pnl_u = lado * (salida - entrada) - comision * (entrada + salida) - fund_u
+    pnl_u = realizado + rem * (lado * (salida - entrada) - comision * (entrada + salida)) - fund_u
     return salida, nocional * pnl_u / entrada, pnl_u / dist
 
 
 @njit(cache=True)
 def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long, sal_short, funding,
             stop_tipo, stop_val, tp_tipo, tp_val, trail_val, max_velas, comision, slippage, retraso,
-            riesgo, apal_max, slip_stop, dist_long, dist_short, be_r):
+            riesgo, apal_max, slip_stop, dist_long, dist_short, be_r, parc_r):
     n = len(cierre)
     cap = n // 2 + 2
     t_ent = np.empty(cap, np.int64)
@@ -104,6 +106,8 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
     pend_idx = -1
     pend_atr = 0.0
     pend_dist = 0.0
+    rem = 1.0          # parte de la posición que sigue abierta
+    realizado = 0.0    # ganancia por unidad ya cobrada en la salida parcial
 
     for i in range(n):
         # 1) entrada pendiente: se ejecuta en la apertura de esta vela
@@ -136,10 +140,12 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                     fund_u = 0.0
                     movido = False
                     salida_pend = False
+                    rem = 1.0
+                    realizado = 0.0
 
         # 2) salida por señal (decidida al cierre de la vela anterior)
         if pos != 0 and salida_pend:
-            ps, ret, r = _cerrar(apertura[i], pos, entrada, dist, nocional, fund_u, comision, slippage)
+            ps, ret, r = _cerrar(apertura[i], pos, entrada, dist, nocional, fund_u, comision, slippage, rem, realizado)
             t_ent[k] = idx_ent; t_sal[k] = i; t_lado[k] = pos; t_pe[k] = entrada; t_ps[k] = ps
             t_ret[k] = ret; t_r[k] = r; t_mot[k] = 4; t_fund[k] = fund_u; t_noc[k] = nocional
             k += 1
@@ -149,7 +155,7 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
         # 3) funding, stop y take-profit dentro de la vela
         if pos != 0:
             if funding[i] != 0.0:
-                fund_u += pos * funding[i] * apertura[i]
+                fund_u += rem * pos * funding[i] * apertura[i]
             precio = 0.0
             mot = 0
             mot_stop = 3 if movido else 1
@@ -158,6 +164,16 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                     precio = apertura[i]; mot = mot_stop
                 elif minimo[i] <= stop:
                     precio = stop * (1.0 - slip_stop); mot = mot_stop
+                if mot == 0 and parc_r > 0.0 and rem == 1.0 and maximo[i] >= entrada + parc_r * dist and (tp_tipo == 2 or entrada + parc_r * dist < tp):
+                    nivel = max(entrada + parc_r * dist, apertura[i])
+                    sp = nivel * (1.0 - slippage)
+                    realizado = 0.5 * ((sp - entrada) - comision * (entrada + sp))
+                    rem = 0.5
+                    nb = entrada * (1.0 + 2.0 * comision)
+                    if nb > stop:
+                        stop = nb; movido = True
+                if mot != 0:
+                    pass
                 elif tp_tipo != 2 and apertura[i] >= tp:
                     precio = apertura[i]; mot = 2
                 elif tp_tipo != 2 and maximo[i] >= tp:
@@ -167,12 +183,22 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                     precio = apertura[i]; mot = mot_stop
                 elif maximo[i] >= stop:
                     precio = stop * (1.0 + slip_stop); mot = mot_stop
+                if mot == 0 and parc_r > 0.0 and rem == 1.0 and minimo[i] <= entrada - parc_r * dist and (tp_tipo == 2 or entrada - parc_r * dist > tp):
+                    nivel = min(entrada - parc_r * dist, apertura[i])
+                    sp = nivel * (1.0 + slippage)
+                    realizado = 0.5 * (-(sp - entrada) - comision * (entrada + sp))
+                    rem = 0.5
+                    nb = entrada * (1.0 - 2.0 * comision)
+                    if nb < stop:
+                        stop = nb; movido = True
+                if mot != 0:
+                    pass
                 elif tp_tipo != 2 and apertura[i] <= tp:
                     precio = apertura[i]; mot = 2
                 elif tp_tipo != 2 and minimo[i] <= tp:
                     precio = tp; mot = 2
             if mot != 0:
-                ps, ret, r = _cerrar(precio, pos, entrada, dist, nocional, fund_u, comision, slippage)
+                ps, ret, r = _cerrar(precio, pos, entrada, dist, nocional, fund_u, comision, slippage, rem, realizado)
                 t_ent[k] = idx_ent; t_sal[k] = i; t_lado[k] = pos; t_pe[k] = entrada; t_ps[k] = ps
                 t_ret[k] = ret; t_r[k] = r; t_mot[k] = mot; t_fund[k] = fund_u; t_noc[k] = nocional
                 k += 1
@@ -181,7 +207,7 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
         # 4) salida por tiempo, stop móvil y señal de salida (al cierre)
         if pos != 0:
             if max_velas > 0 and i - idx_ent + 1 >= max_velas:
-                ps, ret, r = _cerrar(cierre[i], pos, entrada, dist, nocional, fund_u, comision, slippage)
+                ps, ret, r = _cerrar(cierre[i], pos, entrada, dist, nocional, fund_u, comision, slippage, rem, realizado)
                 t_ent[k] = idx_ent; t_sal[k] = i; t_lado[k] = pos; t_pe[k] = entrada; t_ps[k] = ps
                 t_ret[k] = ret; t_r[k] = r; t_mot[k] = 5; t_fund[k] = fund_u; t_noc[k] = nocional
                 k += 1
@@ -213,7 +239,7 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                 pend_lado = -1; pend_idx = i + 1 + retraso; pend_atr = atr[i]; pend_dist = dist_short[i]
 
     if pos != 0:
-        ps, ret, r = _cerrar(cierre[n - 1], pos, entrada, dist, nocional, fund_u, comision, slippage)
+        ps, ret, r = _cerrar(cierre[n - 1], pos, entrada, dist, nocional, fund_u, comision, slippage, rem, realizado)
         t_ent[k] = idx_ent; t_sal[k] = n - 1; t_lado[k] = pos; t_pe[k] = entrada; t_ps[k] = ps
         t_ret[k] = ret; t_r[k] = r; t_mot[k] = 6; t_fund[k] = fund_u; t_noc[k] = nocional
         k += 1
@@ -263,7 +289,7 @@ def backtest(velas: pd.DataFrame, ent_long, ent_short, salidas: Salidas, costos:
                   TIPOS[salidas.stop_tipo], float(salidas.stop), TIPOS[salidas.tp_tipo], float(salidas.tp),
                   float(salidas.trailing), int(salidas.max_velas), costos.comision_pct / 100.0,
                   costos.slippage_pct / 100.0, int(retraso), riesgo_pct / 100.0, float(apalancamiento_max),
-                  costos.slippage_stop_pct / 100.0, d_l, d_s, float(salidas.breakeven))
+                  costos.slippage_stop_pct / 100.0, d_l, d_s, float(salidas.breakeven), float(salidas.parcial))
     ent, sal, lado, pe, ps, ret, r, mot, fu, noc = res
     ts = velas["ts"].to_numpy(dtype="int64")
     ops = pd.DataFrame({

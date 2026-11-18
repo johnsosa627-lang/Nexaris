@@ -178,7 +178,7 @@ def test_numba_y_python_dan_lo_mismo():
     a = atr(v["high"], v["low"], v["close"]).to_numpy()
     fund = np.where(np.arange(3000) % 8 == 0, 0.0001, 0.0)
     args = (v["open"].to_numpy(), v["high"].to_numpy(), v["low"].to_numpy(), v["close"].to_numpy(), a,
-            l, c, sl, sc, fund, 1, 1.5, 0, 3.0, 2.0, 30, 0.0005, 0.0002, 0, 0.01, 3.0, 0.0003, a * 2.2, a * 1.8, 1.0)
+            l, c, sl, sc, fund, 1, 1.5, 0, 3.0, 2.0, 30, 0.0005, 0.0002, 0, 0.01, 3.0, 0.0003, a * 2.2, a * 1.8, 1.0, 1.0)
     for x, y in zip(_nucleo(*args), _nucleo.py_func(*args)):
         np.testing.assert_allclose(x, y)
     args_rango = args[:10] + (3,) + args[11:]  # stop "rango": usa las distancias de la señal
@@ -210,3 +210,19 @@ def test_breakeven_pasa_el_stop_a_la_entrada():
                    atr_serie=atr2)
     assert sin.operaciones["r"].iloc[0] < -0.9
     assert abs(con.operaciones["r"].iloc[0]) < 1e-9 and con.operaciones["motivo"].iloc[0] == "stop móvil"
+
+
+def test_salida_parcial_cierra_la_mitad_y_el_resto_queda_en_la_entrada():
+    from tests.conftest import velas
+    # compra en 100 (stop 2 ATR = 4), toca 104 (+1R): cierra la mitad en 104; después cae: el resto sale en la entrada
+    filas = [(100, 100.5, 99.5, 100)] * 20 + [(100, 104.5, 99.9, 104), (104, 104, 95, 96)]
+    v = velas(filas)
+    entrada = np.zeros(len(v), dtype=bool)
+    entrada[19] = True
+    atr2 = np.full(len(v), 2.0)
+    sin_costos = Costos(0.0, 0.0, False, 0.0)
+    r = backtest(v, entrada, None, Salidas("atr", 2, "ninguno", 0, parcial=1.0), sin_costos, atr_serie=atr2)
+    assert abs(r.operaciones["r"].iloc[0] - 0.5) < 1e-9  # la mitad ganó 1R, la otra mitad 0
+    # si la toma de ganancia está antes que la parcial, la parcial no se usa
+    r2 = backtest(v, entrada, None, Salidas("atr", 2, "atr", 1.5, parcial=2.0), sin_costos, atr_serie=atr2)
+    assert abs(r2.operaciones["r"].iloc[0] - 0.75) < 1e-9

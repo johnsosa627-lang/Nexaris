@@ -593,8 +593,11 @@ class Liga:
                 salida, pnl = ej.resultado_cierre(bot["simbolo"], pos)
                 self._registrar(bot, salida, pnl, pnl / pos["riesgo_usdt"], self._motivo(pos, salida) + " (exchange)")
                 return
+            nivel = pos.get("parcial") if not pos.get("parcial_hecha") else None
+            if nivel is not None and (vela["high"] >= nivel if pos["lado"] == 1 else vela["low"] <= nivel):
+                self._parcial_exchange(bot, ej)
         else:
-            tocado = revisar_vela(pos, vela, self.slip_stop)
+            tocado = revisar_vela(pos, vela, self.slip_stop, self.slippage, self.comision)
             if tocado:
                 self._cerrar_simulado(bot, *tocado)
                 return
@@ -606,6 +609,35 @@ class Liga:
             if errores:
                 self._aviso_unico(f"stop-{bot['id']}", f"⚠️ No pude mover el stop de {bot['id']}: {errores[0]}. "
                                                       "El software lo sigue vigilando.")
+
+    def _parcial_exchange(self, bot, ej):
+        """Salida parcial en Binance: cierra la mitad a mercado, pasa el stop a la entrada y vuelve a poner
+        stop y toma de ganancia para lo que queda."""
+        pos = bot["posicion"]
+        pos["parcial_hecha"] = True  # una sola vez, aunque falle (no reintentar en cada vela)
+        mitad = self.mercado.ajustar(bot["simbolo"], pos["cantidad"] / 2)
+        if not mitad or mitad >= pos["cantidad"]:
+            return  # con esta cantidad no se puede partir al medio: sigue entera
+        try:
+            precio = ej.cerrar_parcial(bot["simbolo"], pos["lado"], mitad)
+        except Exception as e:  # noqa: BLE001
+            self._aviso_unico(f"parcial-{bot['id']}", f"⚠️ No pude cerrar la mitad de {bot['id']}: {str(e)[:150]}. "
+                                                       "La operación sigue entera con su stop.")
+            return
+        lado, entrada = pos["lado"], pos["entrada"]
+        pos["realizado_usdt"] = pos.get("realizado_usdt", 0.0) + \
+            lado * (precio - entrada) * mitad - self.comision * (entrada + precio) * mitad
+        pos["cantidad"] = round(pos["cantidad"] - mitad, 12)
+        nivel_be = entrada * (1 + lado * 2 * self.comision)
+        if (nivel_be - pos["stop"]) * lado > 0:
+            pos["stop"], pos["stop_movido"] = nivel_be, True
+        errores = ej.mover_stop(bot["simbolo"], lado, pos["cantidad"], pos["stop"], pos.get("tp"))
+        if errores:
+            self._aviso_unico(f"stop-{bot['id']}", f"⚠️ No pude mover el stop de {bot['id']}: {errores[0]}. "
+                                                  "El software lo sigue vigilando.")
+        real = pos.get("cuenta") == "real"
+        self.evento(f"{'💵 PLATA REAL · ' if real else ''}✂️ {bot['id']} cerró la MITAD de {_moneda(bot['simbolo'])} "
+                    f"a {precio:.6g} ({pos['realizado_usdt']:+.2f} USDT asegurados). El resto sigue con el stop en la entrada.")
 
     @staticmethod
     def _motivo(pos, salida):
@@ -779,6 +811,9 @@ class Liga:
                 continue
             precio = ej.precio(bot["simbolo"])
             lado = pos["lado"]
+            nivel = pos.get("parcial") if not pos.get("parcial_hecha") else None
+            if nivel is not None and (precio - nivel) * lado >= 0 and (precio - pos["stop"]) * lado > 0:
+                self._parcial_exchange(bot, ej)
             if (lado == 1 and precio <= pos["stop"]) or (lado == -1 and precio >= pos["stop"]):
                 self._cerrar(bot, self._motivo(pos, pos["stop"]) + " (software)")
             elif pos.get("tp") is not None and ((lado == 1 and precio >= pos["tp"]) or (lado == -1 and precio <= pos["tp"])):
