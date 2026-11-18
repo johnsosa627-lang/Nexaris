@@ -40,6 +40,7 @@ class Salidas:
     trailing: float = 0.0      # stop móvil, mismo tipo que el stop (0 = sin stop móvil)
     max_velas: int = 0         # salida por tiempo (0 = sin límite)
     salida_contraria: bool = False  # salir si aparece la señal opuesta (la aplica quien arma las señales)
+    breakeven: float = 0.0     # al cerrar una vela con ganancia de N veces lo arriesgado, el stop pasa a la entrada (0 = no)
 
     def validar(self):
         if self.stop_tipo not in ("pct", "atr", "rango") or not self.stop or self.stop <= 0:
@@ -73,7 +74,7 @@ def _cerrar(precio, lado, entrada, dist, nocional, fund_u, comision, slippage):
 @njit(cache=True)
 def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long, sal_short, funding,
             stop_tipo, stop_val, tp_tipo, tp_val, trail_val, max_velas, comision, slippage, retraso,
-            riesgo, apal_max, slip_stop, dist_long, dist_short):
+            riesgo, apal_max, slip_stop, dist_long, dist_short, be_r):
     n = len(cierre)
     cap = n // 2 + 2
     t_ent = np.empty(cap, np.int64)
@@ -186,6 +187,12 @@ def _nucleo(apertura, maximo, minimo, cierre, atr, ent_long, ent_short, sal_long
                 k += 1
                 pos = 0
             else:
+                if be_r > 0.0:  # punto de equilibrio: el stop pasa a la entrada (más las comisiones)
+                    nivel_be = entrada * (1.0 + pos * 2.0 * comision)
+                    if pos == 1 and maximo[i] >= entrada + be_r * dist and nivel_be > stop:
+                        stop = nivel_be; movido = True
+                    elif pos == -1 and minimo[i] <= entrada - be_r * dist and nivel_be < stop:
+                        stop = nivel_be; movido = True
                 if trail_d > 0.0:
                     if pos == 1:
                         nuevo = maximo[i] - trail_d
@@ -256,7 +263,7 @@ def backtest(velas: pd.DataFrame, ent_long, ent_short, salidas: Salidas, costos:
                   TIPOS[salidas.stop_tipo], float(salidas.stop), TIPOS[salidas.tp_tipo], float(salidas.tp),
                   float(salidas.trailing), int(salidas.max_velas), costos.comision_pct / 100.0,
                   costos.slippage_pct / 100.0, int(retraso), riesgo_pct / 100.0, float(apalancamiento_max),
-                  costos.slippage_stop_pct / 100.0, d_l, d_s)
+                  costos.slippage_stop_pct / 100.0, d_l, d_s, float(salidas.breakeven))
     ent, sal, lado, pe, ps, ret, r, mot, fu, noc = res
     ts = velas["ts"].to_numpy(dtype="int64")
     ops = pd.DataFrame({

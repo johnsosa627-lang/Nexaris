@@ -28,6 +28,7 @@ STOP = {"pct": [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0], "atr": [1.0, 1.5, 2.0,
 TP = {"pct": [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 10.0], "atr": [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0]}
 TRAILING = {"pct": [1.0, 2.0, 3.0], "atr": [1.5, 2.0, 3.0, 4.0], "rango": [1.5, 2.0, 3.0, 4.0]}  # rango: en ATR
 MAX_VELAS = [12, 24, 48, 96, 200]
+BREAKEVEN = [0.5, 1.0, 1.5, 2.0]           # ganancia (en veces lo arriesgado) para pasar el stop a la entrada
 RSI_CORTO_N = [2, 3]                       # RSI muy corto: retrocesos de 1-3 velas
 RSI_CORTO_NIVEL = [5, 10, 15, 20]
 COMPRESION = [(20, 50), (20, 100), (50, 100)]  # (Bollinger, velas en las que su ancho es el menor)
@@ -408,6 +409,8 @@ def salidas_aleatorias(rng) -> dict:
     }
     if rng.random() < 0.15:  # la clave solo aparece si está activa (no cambia el id de las estrategias viejas)
         s["salida_contraria"] = True
+    if rng.random() < 0.25:  # ídem: punto de equilibrio
+        s["breakeven"] = _elegir(rng, BREAKEVEN)
     return s
 
 
@@ -501,7 +504,8 @@ def _mover_condicion(rng, cond: dict) -> dict:
 def _mover_salidas(rng, s: dict) -> dict:
     s = dict(s)
     opciones = ["stop"] + (["tp"] if s["tp_tipo"] != "ninguno" else []) + \
-        (["trailing"] if s["trailing"] > 0 else []) + (["max_velas"] if s["max_velas"] > 0 else [])
+        (["trailing"] if s["trailing"] > 0 else []) + (["max_velas"] if s["max_velas"] > 0 else []) + \
+        (["breakeven"] if s.get("breakeven") else [])
     opcion = _elegir(rng, opciones)
     if opcion == "stop":
         s["stop"] = _vecino(rng, STOP[s["stop_tipo"]], s["stop"])
@@ -511,6 +515,8 @@ def _mover_salidas(rng, s: dict) -> dict:
         s["trailing"] = _vecino(rng, TRAILING[s["stop_tipo"]], s["trailing"])
     elif opcion == "max_velas" and s["max_velas"] > 0:
         s["max_velas"] = _vecino(rng, MAX_VELAS, s["max_velas"])
+    elif opcion == "breakeven" and s.get("breakeven"):
+        s["breakeven"] = _vecino(rng, BREAKEVEN, s["breakeven"])
     return s
 
 
@@ -678,6 +684,9 @@ def describir(est: dict) -> str:
         salida += f", stop móvil a {unidad(s['trailing'])}"
     if s["max_velas"]:
         salida += f", y cierra sí o sí tras {s['max_velas']} velas"
+    if s.get("breakeven"):
+        salida += (f", y cuando va ganando {s['breakeven']:g} veces lo arriesgado pasa el stop a la entrada "
+                   "(desde ahí no pierde)")
     if s.get("salida_contraria"):
         salida += ", y sale antes si aparece la señal contraria"
     texto = textos[est["lado"]] + salida + "."

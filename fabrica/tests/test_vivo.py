@@ -81,6 +81,7 @@ def test_suplente_en_vivo_hace_lo_mismo_que_el_backtest(tmp_path):
     {"stop_tipo": "rango", "stop": 10, "tp_tipo": "atr", "tp": 4.0, "trailing": 3.0, "max_velas": 60},
     {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "ninguno", "tp": 0.0, "trailing": 0.0, "max_velas": 0,
      "salida_contraria": True},
+    {"stop_tipo": "atr", "stop": 2.0, "tp_tipo": "atr", "tp": 6.0, "trailing": 0.0, "max_velas": 0, "breakeven": 1.0},
 ])
 def test_stop_rango_y_salida_contraria_en_vivo_igual_que_el_backtest(tmp_path, salidas):
     est = {"lado": "ambos", "reglas": [{"tipo": "ruptura_donchian", "n": 20}], "salidas": salidas}

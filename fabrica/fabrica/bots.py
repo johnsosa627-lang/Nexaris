@@ -64,7 +64,10 @@ def niveles(salidas: dict, lado: int, entrada: float, atr: float, dist_rango: Op
     trail = 0.0
     if salidas.get("trailing"):
         trail = entrada * salidas["trailing"] / 100 if salidas["stop_tipo"] == "pct" else atr * salidas["trailing"]
-    return {"stop": entrada - lado * dist, "tp": tp, "dist": dist, "trail": trail, "stop_movido": False}
+    niv = {"stop": entrada - lado * dist, "tp": tp, "dist": dist, "trail": trail, "stop_movido": False}
+    if salidas.get("breakeven"):
+        niv["be"] = float(salidas["breakeven"]) * dist  # cuánto a favor para pasar el stop a la entrada
+    return niv
 
 
 def revisar_vela(pos: dict, vela: dict, slip_stop: float) -> Optional[Tuple[float, str]]:
@@ -93,11 +96,19 @@ def revisar_vela(pos: dict, vela: dict, slip_stop: float) -> Optional[Tuple[floa
     return None
 
 
-def cierre_de_vela(pos: dict, vela: dict, max_velas: int) -> Optional[str]:
-    """Cuenta la vela, aplica salida por tiempo y mueve el stop móvil. Devuelve 'tiempo' si hay que salir."""
+def cierre_de_vela(pos: dict, vela: dict, max_velas: int, comision: float = 0.0005) -> Optional[str]:
+    """Cuenta la vela, aplica salida por tiempo, punto de equilibrio y stop móvil (igual que las pruebas).
+    Devuelve 'tiempo' si hay que salir."""
     pos["velas"] = pos.get("velas", 0) + 1
     if max_velas and pos["velas"] >= max_velas:
         return "tiempo"
+    if pos.get("be"):
+        lado, entrada = pos["lado"], pos["entrada"]
+        nivel = entrada * (1 + lado * 2 * comision)
+        if lado == 1 and vela["high"] >= entrada + pos["be"] and nivel > pos["stop"]:
+            pos["stop"], pos["stop_movido"] = nivel, True
+        elif lado == -1 and vela["low"] <= entrada - pos["be"] and nivel < pos["stop"]:
+            pos["stop"], pos["stop_movido"] = nivel, True
     if pos.get("trail"):
         if pos["lado"] == 1:
             nuevo = vela["high"] - pos["trail"]

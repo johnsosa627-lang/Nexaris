@@ -92,6 +92,9 @@ FAMOSAS = [
     {"famosa": "RSI 30/70 con filtro de tendencia (la clásica de los cursos)", "lado": "ambos",
      "reglas": [{"tipo": "rsi_cruce", "n": 14, "nivel": 30}, {"tipo": "tendencia", "media": "sma", "n": 200}],
      "salidas": _s("atr", 2.0, "atr", 3.0, max_velas=48)},
+    # Gestión clásica de los profesionales: asegurar la operación pasando el stop a la entrada al ir +1R
+    {"famosa": "Tortugas 20 con stop a punto de equilibrio en +1R", "lado": "ambos",
+     "reglas": [{"tipo": "ruptura_donchian", "n": 20}], "salidas": {**_s("atr", 2.0, trailing=3.0), "breakeven": 1.0}},
 ]
 
 
