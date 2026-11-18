@@ -201,6 +201,22 @@ class Liga:
         lineas.append("Alcista/bajista = Bitcoin con tendencia (ADX alto) arriba/abajo de su media de 200; lateral = sin tendencia.")
         return "\n".join(lineas)
 
+    def factor_riesgo(self, bot) -> float:
+        """Riesgo por bot según lo que demostró en vivo (APAGADO salvo que John lo active en config.yaml):
+        con muchas operaciones y ganancia comprobada arriesga más; si en vivo pierde, menos. El tope de riesgo
+        abierto total y los frenos no cambian."""
+        rb = self.cfg.get("riesgo_por_bot") or {}
+        if not rb.get("activo"):
+            return 1.0
+        rs = [t["r"] for t in bot["trades"]]
+        if len(rs) < rb.get("min_operaciones", 20):
+            return 1.0
+        if sum(rs) / len(rs) <= 0:
+            return float(rb.get("factor_malo", 0.5))
+        if _t_media(rs) >= rb.get("t_minimo", 2.0):
+            return float(rb.get("factor_bueno", 1.5))
+        return 1.0
+
     def bots_reales(self) -> list:
         """Los elegidos a mano (real_parcial.bots) más los que pasaron solos por ganar en vivo."""
         return list(dict.fromkeys(list(self.RP.get("bots") or []) + list(self.e["cuenta_real"].get("auto") or [])))
@@ -684,7 +700,7 @@ class Liga:
                 capital = self.capital()
                 abierto = sum(b["posicion"]["riesgo_usdt"] for b in self.bots("titular")
                               if b["posicion"] and b["posicion"].get("cuenta") != "real")
-            riesgo = capital * self.riesgo_frac
+            riesgo = capital * self.riesgo_frac * self.factor_riesgo(bot)
             if not C.riesgo_abierto_permitido(abierto, riesgo, capital, self.R["riesgo_total_max_pct"]):
                 self._senal_perdida(bot, lado, f"el riesgo abierto total pasaría el {self.R['riesgo_total_max_pct']}%")
                 self._aviso_unico(f"riesgo-{bot['id']}", f"⏸ {bot['id']} tenía señal pero el riesgo abierto total llegaría "
