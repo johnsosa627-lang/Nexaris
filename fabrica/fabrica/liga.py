@@ -303,10 +303,25 @@ class Liga:
                 quedan.append(bot)
         return sacados
 
+    def _por_variedad(self, registros: list) -> list:
+        """Ordena los candidatos para cubrir primero las monedas y temporalidades que faltan en la liga.
+        Así el equipo opera en más mercados distintos (más robusto), sin bajar la calidad: dentro de cada
+        combinación siguen primero los que van mejor con datos nuevos (ya vienen ordenados así del banco)."""
+        presentes = {(b["simbolo"], b["tf"]) for b in self.bots("titular") + self.bots("suplente")}
+        vistos = dict.fromkeys(presentes, 1)
+        orden = []
+        for i, reg in enumerate(registros):
+            clave = (reg["simbolo"], reg["tf"])
+            cuantos = vistos.get(clave, 0)
+            vistos[clave] = cuantos + 1
+            orden.append((cuantos, i, reg))  # menos repetida esa moneda+tf = antes; empate: orden del banco
+        return [reg for _, _, reg in sorted(orden, key=lambda x: (x[0], x[1]))]
+
     def sincronizar_banco(self, registros: list) -> list:
         tope = self.L.get("max_suplentes_por_moneda") or self.L["max_suplentes"]
         repetidas = self._sacar_repetidas()
         sacados = self._hacer_lugar_por_moneda(tope)
+        registros = self._por_variedad(registros)
         nuevos = []
         for reg in registros:
             if reg["id"] in self.e["bots"]:

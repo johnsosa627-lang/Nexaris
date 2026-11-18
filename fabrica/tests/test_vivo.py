@@ -567,7 +567,7 @@ def test_no_entran_suplentes_repetidas(tmp_path):
     nuevos = liga.sincronizar_banco([registro(1), registro(2), registro(3, estrategia=otra),
                                      registro(4, "BBB/USDT:USDT")])
     # bot2 tiene las mismas reglas de entrada que bot1 en la misma moneda y temporalidad: no entra
-    assert nuevos == ["bot1", "bot3", "bot4"]
+    assert set(nuevos) == {"bot1", "bot3", "bot4"}  # orden puede variar por la priorización de variedad
     # resultados diarios casi iguales también cuentan como repetida
     diario = {f"2024-01-{d:02d}": float(np.sin(d)) for d in range(1, 29)}
     liga2, _, _ = liga_papel(tmp_path / "b", cfg_prueba(max_titulares=0))
@@ -857,3 +857,15 @@ def test_riesgo_por_bot_apagado_por_defecto_y_cuando_se_activa(tmp_path):
     assert liga.factor_riesgo(bot) == 0.5
     bot["trades"] = [{"r": 1.0}] * 5
     assert liga.factor_riesgo(bot) == 1.0                       # pocas operaciones: igual
+
+
+def test_sincronizar_prioriza_variedad_de_monedas_y_tf(tmp_path):
+    liga, _, _ = liga_papel(tmp_path, cfg_prueba(max_titulares=0, max_suplentes=4, max_suplentes_por_moneda=4))
+    # 3 de AAA 1h y 1 de BBB 4h: con solo 4 lugares, debe entrar la de BBB (cubre una moneda nueva) y no las 3 de AAA
+    regs = [distinta(1), distinta(2), distinta(3),
+            {**distinta(9, "BBB/USDT:USDT"), "tf": "4h"}]
+    for r in regs[:3]:
+        r["tf"] = "1h"
+    liga.sincronizar_banco(regs)
+    simbolos = {b["simbolo"] for b in liga.bots("suplente")}
+    assert "BBB/USDT:USDT" in simbolos  # la moneda nueva entró aunque estaba última en la lista
