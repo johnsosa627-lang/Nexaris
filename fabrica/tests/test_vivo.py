@@ -841,3 +841,19 @@ def test_salida_parcial_en_binance(tmp_path):
     assert any(o[0] == "mover" for o in ej.ordenes)  # stop y toma de ganancia nuevos para lo que queda
     liga.vigilar()
     assert len(cierres) == 1                          # una sola vez
+
+
+def test_riesgo_por_bot_apagado_por_defecto_y_cuando_se_activa(tmp_path):
+    liga, _, _ = liga_papel(tmp_path)
+    liga.sincronizar_banco([registro(1)])
+    bot = liga.e["bots"]["bot1"]
+    rng = np.random.default_rng(3)
+    bot["trades"] = [{"r": float(r)} for r in rng.normal(0.8, 1.0, 30)]
+    assert liga.factor_riesgo(bot) == 1.0                       # apagado: nada cambia
+    liga.cfg["riesgo_por_bot"] = {"activo": True, "min_operaciones": 20, "t_minimo": 2.0,
+                                  "factor_bueno": 1.5, "factor_malo": 0.5}
+    assert liga.factor_riesgo(bot) == 1.5
+    bot["trades"] = [{"r": -0.5}] * 25
+    assert liga.factor_riesgo(bot) == 0.5
+    bot["trades"] = [{"r": 1.0}] * 5
+    assert liga.factor_riesgo(bot) == 1.0                       # pocas operaciones: igual

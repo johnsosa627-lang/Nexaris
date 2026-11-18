@@ -45,6 +45,11 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la cuenta REAL de Binance; el resto sigue en la demo. Necesita: claves reales `BINANCE_REAL_API_KEY`/`BINANCE_REAL_API_SECRET` (solo futuros, sin retiros, IP 187.77.33.76), `LIVE_TRADING=true`, USDT en la billetera de Futuros real y `/confirmar_real`. Capital propio (`real_parcial.capital`, 50 USDT por defecto → 1% = 0,50 por operación) y frenos propios (diario y total). El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Activado el 3/11 con XRP 1h (943f10ba0e); primera operación real: +0,94 USDT. Desde el 10/11, pase automático (`real_parcial.auto`): un titular con 10+ operaciones en vivo y promedio ≥ +0,2R pasa solo a plata real, y vuelve a la demo si deja de cumplirlo; todos comparten el capital y los frenos de la cuenta real.
 
+## Pendientes que decide John
+
+- **Riesgo por bot** (programado el 19/11/2026, APAGADO en `config.yaml` → `riesgo_por_bot.activo`): un bot con 20+ operaciones en vivo y ganancia comprobada (t ≥ 2) arriesgaría 1,5%; uno que pierde en promedio, 0,5%. El tope de 3% abierto y los frenos no cambian. Activarlo solo si John lo decide.
+- **Cobrar el funding** (comprar en Spot + vender en corto en Futuros la misma cantidad): usaría los USDT de Spot; no está programado.
+
 ## Reglas de riesgo (no se tocan)
 
 - 1% de riesgo por operación, máximo 3% en total abierto, apalancamiento máximo 3x.
@@ -82,7 +87,7 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Mercado: miedo extremo (10/100) a mediados de noviembre, Bitcoin ~76.000, secuelas del hackeo de Binance.
 - Idea de John para el 22/11 si sigue 🟢: subir la plata real a 80 USDT (él pasa 30 USDT más a Futuros; se cambia `real_parcial.capital` a 80).
 - Plata de John en Binance (real): ~50 USDT en Futuros (los usa el sistema), ~50 USDT en Spot y ~35 TRX (no los toca el sistema).
-- Tests: 168 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 169 pasan (`cd fabrica && python -m pytest -q`).
 - Problemas ya resueltos que pueden volver: Telegram cortando las esperas largas (ahora pasa solo a conexiones cortas); ciclo cortado por una actualización (se retoma solo); caída del servidor por memoria (n8n apagado; el ciclo usa un proceso nuevo por moneda).
 
 ## Próximos pasos
