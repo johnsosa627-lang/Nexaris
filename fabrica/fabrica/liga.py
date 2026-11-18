@@ -149,6 +149,58 @@ class Liga:
                 and cr.get("confirmado") and not cr.get("apagada") and not cr.get("freno_dia")
                 and (bot.get("nivel") != "exploracion" or self.probada_en_practica(bot)))
 
+    # ------------------------------------------------------------------ clima del mercado
+    def clima(self) -> Optional[str]:
+        c = self.e.get("clima") or {}
+        return c.get("actual") if (self.cfg.get("clima") or {}).get("activo") else None
+
+    def actualizar_clima(self, nuevo: Optional[str]):
+        """Lo llama el servicio con el clima calculado de Bitcoin 4 h. Avisa cuando cambia."""
+        if not nuevo:
+            return
+        c = self.e.setdefault("clima", {})
+        anterior = c.get("actual")
+        if nuevo != anterior:
+            c.update(actual=nuevo, desde=self.ahora().isoformat(timespec="seconds"))
+            if anterior and (self.cfg.get("clima") or {}).get("activo"):
+                from .clima import ICONO
+                frenados = [b["id"] for b in self.bots("titular") if self.no_gana_en_este_clima(b)]
+                self.evento(f"🧭 Cambió el clima del mercado: de {anterior} a {ICONO.get(nuevo, '')} {nuevo.upper()}. "
+                            + (f"No van a entrar en este clima (no ganan en él): {', '.join(frenados)}."
+                               if frenados else "Todos los titulares ganan en este clima: siguen normal."))
+            self.guardar()
+
+    def no_gana_en_este_clima(self, bot) -> Optional[str]:
+        """Motivo para no entrar si el bot NO gana en el clima actual (en sus pruebas o en vivo); si no, None."""
+        clima = self.clima()
+        if not clima:
+            return None
+        cc = self.cfg.get("clima") or {}
+        vivo = [t["r"] for t in bot["trades"] if t.get("clima") == clima]
+        if len(vivo) >= cc.get("min_ops_vivo", 5):  # con suficiente experiencia en vivo, manda lo vivido
+            if sum(vivo) / len(vivo) <= 0:
+                return f"clima {clima}: en vivo pierde en este clima ({len(vivo)} operaciones)"
+            return None
+        prueba = (bot.get("por_clima") or {}).get(clima)
+        if prueba and prueba["n"] >= cc.get("min_ops_pruebas", 20) and prueba["r"] <= 0:
+            return f"clima {clima}: en sus pruebas perdía en este clima ({prueba['n']} operaciones, {prueba['r']:+.2f}R)"
+        return None
+
+    def texto_clima(self) -> str:
+        from .clima import ICONO
+        clima = self.clima()
+        if not clima:
+            return "🧭 Clima del mercado: todavía sin medir (o apagado en config.yaml)."
+        c = self.e.get("clima") or {}
+        lineas = [f"🧭 Clima del mercado (Bitcoin 4 h): {ICONO.get(clima, '')} {clima.upper()} desde {c.get('desde', '?')[:16]}."]
+        for b in self.bots("titular"):
+            motivo = self.no_gana_en_este_clima(b)
+            p = (b.get("por_clima") or {}).get(clima)
+            pruebas = f"pruebas {p['r']:+.2f}R en {p['n']}" if p else "sin datos en sus pruebas"
+            lineas.append(f"• {b['id']} {_moneda(b['simbolo'])} {b['tf']}: {'⛔ ' + motivo if motivo else '✅ opera'} ({pruebas})")
+        lineas.append("Alcista/bajista = Bitcoin con tendencia (ADX alto) arriba/abajo de su media de 200; lateral = sin tendencia.")
+        return "\n".join(lineas)
+
     def bots_reales(self) -> list:
         """Los elegidos a mano (real_parcial.bots) más los que pasaron solos por ganar en vivo."""
         return list(dict.fromkeys(list(self.RP.get("bots") or []) + list(self.e["cuenta_real"].get("auto") or [])))
@@ -242,6 +294,8 @@ class Liga:
         nuevos = []
         for reg in registros:
             if reg["id"] in self.e["bots"]:
+                if reg.get("por_clima") and not self.e["bots"][reg["id"]].get("por_clima"):
+                    self.e["bots"][reg["id"]]["por_clima"] = reg["por_clima"]
                 continue
             if len(self.bots("suplente")) >= self.L["max_suplentes"]:
                 break
@@ -255,7 +309,7 @@ class Liga:
                 "fitness": reg.get("fitness", 0.0), "nivel": reg.get("nivel", "estricto"),
                 "mc_dd": (reg.get("montecarlo") or {}).get("drawdown_p95_pct", self.cfg["filtros"]["max_drawdown_pct"]),
                 "r_backtest": reg.get("r_backtest", []), "retornos_backtest": reg.get("retornos_backtest", []),
-                "retornos_diarios": reg.get("retornos_diarios", {}),
+                "retornos_diarios": reg.get("retornos_diarios", {}), "por_clima": reg.get("por_clima") or {},
                 "posicion": None, "trades": [], "ultima_vela_ts": 0,
                 "desde": self.ahora().isoformat(timespec="seconds"), "motivo_jubilacion": ""}
             nuevos.append(reg["id"])
@@ -572,6 +626,10 @@ class Liga:
                 self._senal_perdida(bot, lado, bloqueo)
                 return
             cuenta = "real" if self._ej(bot) is not None and self._ej(bot) is self.ejecutor_real else "otra"
+            motivo_clima = self.no_gana_en_este_clima(bot)
+            if motivo_clima:
+                self._senal_perdida(bot, lado, motivo_clima)
+                return
             ocupada = next((t for t in self.bots("titular")
                             if t["id"] != bot["id"] and t["simbolo"] == bot["simbolo"] and t["posicion"]
                             and ("real" if t["posicion"].get("cuenta") == "real" else "otra") == cuenta), None)
@@ -642,6 +700,7 @@ class Liga:
                            "abierta_ts": int(self.reloj() * 1000), "velas": 0,
                            # precio de la señal (cierre de la vela): para medir cuánto peor se entró en Binance
                            "senal": float(vela["close"]),
+                           **({"clima": self.clima()} if self.clima() else {}),
                            "abierta": self.ahora().isoformat(timespec="seconds"), **niv}
         if bot["rol"] == "titular":
             if en_exchange:
@@ -674,6 +733,8 @@ class Liga:
         trade = {"fecha": self.ahora().isoformat(timespec="seconds"), "rol": bot["rol"], "lado": pos["lado"],
                  "entrada": pos["entrada"], "salida": salida, "cantidad": pos["cantidad"], "r": r,
                  "retorno": r * self.riesgo_frac, "pnl_usdt": pnl, "motivo": motivo, "modo": pos.get("modo", "papel")}
+        if pos.get("clima"):
+            trade["clima"] = pos["clima"]
         if pos.get("senal") and pos.get("modo", "papel") != "papel":
             # deslizamiento de entrada en % (positivo = entró peor que el precio de la señal)
             trade["desliz_pct"] = round(pos["lado"] * (pos["entrada"] - pos["senal"]) / pos["senal"] * 100, 4)
@@ -752,6 +813,9 @@ class Liga:
                   f"Cuenta: {c['equity']:.2f} USDT (máximo {c['pico']:.2f}) · hoy {c['pnl_hoy']:+.2f} USDT",
                   f"Titulares: {len(self.bots('titular'))} · suplentes: {len(self.bots('suplente'))} · "
                   f"jubilados: {len(self.bots('jubilado'))}"]
+        if self.clima():
+            from .clima import ICONO
+            lineas.append(f"🧭 Clima del mercado: {ICONO.get(self.clima(), '')} {self.clima()}")
         if self.ejecutor_real is not None:
             cr = self.e["cuenta_real"]
             elegidos = ", ".join(self.bots_reales()) or "ninguno"

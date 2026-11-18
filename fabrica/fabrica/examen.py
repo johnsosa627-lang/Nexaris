@@ -100,6 +100,7 @@ def examinar(cfg: dict, registro: dict) -> dict:
 
     if resultado["aprobada"]:
         trabajo = ev.correr(registro["estrategia"], hasta=inicio)
+        por_clima = _por_clima(cfg, trabajo.operaciones)
         _escribir_json(os.path.join(carpeta_banco(cfg), f"{registro['id']}.json"), {
             **registro, "examen": resultado, "estado": "banco",
             "fecha_ingreso": resultado["fecha"],
@@ -108,10 +109,31 @@ def examinar(cfg: dict, registro: dict) -> dict:
             "r_backtest": [round(float(x), 4) for x in trabajo.operaciones["r"]],
             # Resultado por día: sirve para medir cuánto se parecen dos estrategias (correlación)
             "retornos_diarios": retornos_diarios(trabajo.operaciones),
+            # Cómo le fue en cada clima del mercado (alcista / bajista / lateral) en sus pruebas
+            "por_clima": por_clima,
         })
     log.info("Examen %s (%s %s): %s %s", registro["id"], registro["simbolo"], registro["tf"],
              "APROBADA" if resultado["aprobada"] else "REPROBADA", "; ".join(motivos))
     return resultado
+
+
+_SERIE_CLIMA = {}
+
+
+def _por_clima(cfg, ops) -> dict:
+    """Resultado de las pruebas separado por clima del mercado (con las velas de 4 h de Bitcoin guardadas)."""
+    from .clima import serie_clima, stats_por_clima
+    c = cfg.get("clima") or {}
+    clave = (cfg["datos"]["carpeta"], c.get("adx_min", 20), c.get("ema", 200))
+    try:
+        if clave not in _SERIE_CLIMA:
+            _SERIE_CLIMA.clear()
+            _SERIE_CLIMA[clave] = serie_clima(cargar_velas(cfg["datos"]["carpeta"], SIMBOLO_LIDER, "4h"),
+                                              c.get("adx_min", 20), c.get("ema", 200))
+        return stats_por_clima(ops, _SERIE_CLIMA[clave])
+    except Exception as e:  # noqa: BLE001 - sin datos de Bitcoin 4h, sin clasificación (no frena el examen)
+        log.warning("Clima: no pude clasificar las operaciones: %s", e)
+        return {}
 
 
 def retornos_diarios(ops) -> dict:
@@ -178,6 +200,9 @@ def revisar_banco(cfg: dict, carpeta_ciclo: str = None) -> dict:
         if inicio >= len(velas):
             resumen["sin_datos_nuevos"] += 1
             continue
+        if "por_clima" not in reg:  # estrategias de antes del clima: se clasifican con sus pruebas de siempre
+            corte = int(np.searchsorted(velas["ts"].to_numpy(), int(reg.get("corte_examen_ms") or 0), side="left"))
+            reg["por_clima"] = _por_clima(cfg, ev.correr(reg["estrategia"], hasta=corte).operaciones) if corte else {}
         m = ev.correr(reg["estrategia"], desde=inicio).metricas
         reg["seguimiento"] = {
             "fecha": datetime.now(timezone.utc).isoformat(timespec="seconds"),

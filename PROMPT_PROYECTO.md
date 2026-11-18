@@ -37,6 +37,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 - **Liga:** hasta 8 **titulares** (los que operan; hasta 2 estrategias distintas por moneda pero una sola posición abierta por moneda; nunca más de 3% de riesgo abierto), con correlación menor a 0,5, y **suplentes** que operan en papel. Ascenso con prueba t ≥ 2 y al menos 30 operaciones. **Jubilación automática** si la caída real supera la del Monte Carlo o si rinde mucho peor que en las pruebas.
 - **Modo exploración:** filtros más suaves; esas estrategias se marcan 🧪 y practican en simulado. Solo pueden llegar a plata real si se "gradúan" operando en vivo (30+ operaciones y una prueba estadística t ≥ 2 de que su ganancia no es casualidad), y siempre con el permiso doble.
 - **Titulares 🧪 a prueba:** una 🧪 solo sube a titular si practicando como suplente ya gana (5+ operaciones en vivo con promedio de R positivo). Si siendo titular su promedio cae a 0 o menos, vuelve a suplente y sigue practicando; recupera el lugar si mejora (desde el 30/10/2026, después de una semana de pérdidas en la demo).
+- **Clima del mercado (desde el 19/11/2026):** con las velas de 4 h de Bitcoin se clasifica el mercado en alcista / bajista / lateral (ADX ≥ 20 + precio contra la EMA 200). Cada estrategia guarda cómo le fue en cada clima en sus pruebas (`por_clima`), y cada operación en vivo anota el clima al entrar. Un **titular no entra** en un clima en el que no gana: con 5+ operaciones en vivo en ese clima manda lo vivido; si no, sus pruebas (20+ operaciones con R promedio ≤ 0). Los suplentes no se frenan (siguen juntando datos). Aviso 🧭 cuando cambia el clima; comando `/clima`.
 - **Registro de noticias (desde el 18/11/2026):** el radar anota cada noticia importante o grave y cada dato económico de EE.UU. con el precio de Bitcoin, y después cuánto se movió a 1, 4 y 24 horas (`/data/vivo/noticias.json`, máximo ~1 MB). Solo anota, no cambia cómo se opera. `/noticias` muestra el resumen. Revisar en 1–2 meses: si un tipo de noticia mueve el precio siempre para el mismo lado, convertirlo en pieza de la fábrica y examinarlo.
 - **Radar:** calendario económico, volatilidad de BTC, noticias (Cointelegraph, CoinDesk) y Miedo y Codicia. Pausa las entradas si hay peligro y avisa por Telegram.
 
@@ -55,7 +56,7 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 ## Telegram
 
 - Bot: "Sistema de ganancias".
-- Comandos: /estado /hoy /bots /fabrica /noticias (registro de noticias) /ciclo (correr la fábrica ahora) /salud (chequeo automático: datos, ciclos, disco, bots) /diagnostico (¿hubo señales sin operar?) /graduacion (¿cuánto falta para plata real?) /pausar /reanudar /cerrar_todo /informe /radar /ayuda.
+- Comandos: /estado /hoy /bots /fabrica /noticias (registro de noticias) /clima (clima del mercado) /ciclo (correr la fábrica ahora) /salud (chequeo automático: datos, ciclos, disco, bots) /diagnostico (¿hubo señales sin operar?) /graduacion (¿cuánto falta para plata real?) /pausar /reanudar /cerrar_todo /informe /radar /ayuda.
 - Resumen nocturno a las 22 h (hora de Montevideo). Ciclo semanal de la fábrica: domingo 3:00 UTC.
 
 ## Dónde corre
@@ -81,7 +82,7 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Mercado: miedo extremo (10/100) a mediados de noviembre, Bitcoin ~76.000, secuelas del hackeo de Binance.
 - Idea de John para el 22/11 si sigue 🟢: subir la plata real a 80 USDT (él pasa 30 USDT más a Futuros; se cambia `real_parcial.capital` a 80).
 - Plata de John en Binance (real): ~50 USDT en Futuros (los usa el sistema), ~50 USDT en Spot y ~35 TRX (no los toca el sistema).
-- Tests: 158 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 163 pasan (`cd fabrica && python -m pytest -q`).
 - Problemas ya resueltos que pueden volver: Telegram cortando las esperas largas (ahora pasa solo a conexiones cortas); ciclo cortado por una actualización (se retoma solo); caída del servidor por memoria (n8n apagado; el ciclo usa un proceso nuevo por moneda).
 
 ## Próximos pasos
