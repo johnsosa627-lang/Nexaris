@@ -17,7 +17,7 @@ Repositorio GitHub: `johnsosa627-lang/Nexaris` (rama principal `main`). Tiene do
 
 ## Cómo funciona la fábrica (`fabrica/`)
 
-- **Datos:** Binance Futuros por ccxt. Monedas BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK y LTC. Temporalidades 15m, 1h y 4h. Historia desde 2021-01-01, más el funding. Los **últimos 6 meses se guardan aparte como examen final** y no se usan para crear estrategias.
+- **Datos:** Binance Futuros por ccxt. Monedas BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, LINK, LTC, TRX, DOT, NEAR, ATOM y BCH (las 5 últimas desde el 18/11/2026). Temporalidades 15m, 1h y 4h. Historia desde 2021-01-01, más el funding. Los **últimos 6 meses se guardan aparte como examen final** y no se usan para crear estrategias.
 - **Datos de afuera del gráfico** (se usan como piezas que también se examinan): funding, tendencia de Bitcoin como líder, índice de Miedo y Codicia.
 - **Generador:** inventa estrategias al azar y las mejora con un algoritmo genético (mezclar, mutar). Cada estrategia tiene 1 disparador, hasta 2 filtros y reglas de salida (stop, toma de ganancia, stop móvil, salida por tiempo).
   - Disparadores: cruce de medias, precio cruza media, MACD, ruptura Donchian, rebote Bollinger, cruce de RSI, retroceso RSI-2/3, ruptura tras compresión de Bollinger, cambio de Supertrend, ruptura de la nube de Ichimoku y ruptura de consolidación (rango angosto que se rompe) y ruptura de apertura de sesión (ORB de Nueva York 9:30, Londres 8:00 y rango de Asia), Turtle Soup (falsa ruptura, Linda Raschke), cierre extremo de n velas (Double 7s, Larry Connors), ruptura del canal de Keltner, cruce del estocástico en sobreventa, ruptura de vela interior (price action) y cruce del VWAP del día.
@@ -106,7 +106,7 @@ Mirar tres números: (1) cuenta de práctica desde el 30/10 (ese día ~94,7; el 
 - 🟡 Parejas: renovar 1 mes más; faltan datos.
 - 🔴 Las dos claramente abajo: frenar la plata real (/pausar), sacar los USDT y pensar otro camino (otras estrategias o cuenta de fondeo).
 Ojo: en 3 semanas hay pocas operaciones; se decide con señales, no con certezas.
-También el 22/11 (acordado el 18/11): sumar 5 monedas grandes (p. ej. TRX, DOT, SUI, TON, NEAR; verificar que tengan futuros USDT-M, volumen e historia desde 2021 o la mayor posible) → de 10 a 15 monedas. No "todas las monedas" (las chicas se manipulan y no tienen historia) ni operaciones para ganar centavos (las comisiones se las comen). Vigilar memoria del servidor en el primer ciclo con 15.
+✅ Adelantado al 18/11 (pedido de John): se sumaron 5 monedas grandes con historia desde 2021 (TRX, DOT, NEAR, ATOM, BCH; SUI y TON se descartaron por tener poca historia) → de 10 a 15 monedas, y hasta 45 suplentes. No "todas las monedas" (las chicas se manipulan y no tienen historia) ni operaciones para ganar centavos (las comisiones se las comen). Vigilar memoria del servidor en el primer ciclo con 15.
 
 ## Meta: ganar 3.000 USD por mes con cuentas de fondeo (acordada el 18/11/2026)
 
