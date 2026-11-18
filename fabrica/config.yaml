@@ -6,7 +6,9 @@ datos:
   # Carpeta donde se guardan las velas y el funding (en el servidor: volumen persistente)
   carpeta: datos
   simbolos: [BTC/USDT:USDT, ETH/USDT:USDT, SOL/USDT:USDT, BNB/USDT:USDT, XRP/USDT:USDT,
-             DOGE/USDT:USDT, ADA/USDT:USDT, AVAX/USDT:USDT, LINK/USDT:USDT, LTC/USDT:USDT]
+             DOGE/USDT:USDT, ADA/USDT:USDT, AVAX/USDT:USDT, LINK/USDT:USDT, LTC/USDT:USDT,
+             TRX/USDT:USDT, DOT/USDT:USDT, NEAR/USDT:USDT, ATOM/USDT:USDT, BCH/USDT:USDT]
+  # (las 5 últimas se sumaron el 18/11/2026: grandes, con mucho volumen y futuros desde 2020-2021)
   temporalidades: [15m, 1h, 4h]
   # Desde qué fecha bajar historia
   desde: "2021-01-01"
@@ -118,7 +120,7 @@ seguimiento:
 liga:
   # Bots operando a la vez (titulares) y en práctica (suplentes)
   max_titulares: 8   # uno por moneda como máximo (más bots atentos = más señales); el riesgo abierto total sigue limitado al 3%
-  max_suplentes: 30   # todos practican en papel (nunca plata real): más operaciones para aprender y encontrar fallas
+  max_suplentes: 45   # todos practican en papel (nunca plata real): más operaciones para aprender y encontrar fallas (15 monedas)
   max_titulares_por_moneda: 2   # dos estrategias distintas por moneda, pero nunca dos posiciones a la vez en la misma
   max_suplentes_por_moneda: 4   # así los lugares se reparten entre las 10 monedas (y hay candidatos a titular en todas)
   # Una 🧪 (filtros flojos) solo es titular si practicando ya gana: al menos estas operaciones en vivo
