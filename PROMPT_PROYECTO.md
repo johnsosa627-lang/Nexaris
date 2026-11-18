@@ -87,7 +87,7 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Mercado: miedo extremo (10/100) a mediados de noviembre, Bitcoin ~76.000, secuelas del hackeo de Binance.
 - Idea de John para el 22/11 si sigue 🟢: subir la plata real a 80 USDT (él pasa 30 USDT más a Futuros; se cambia `real_parcial.capital` a 80).
 - Plata de John en Binance (real): ~50 USDT en Futuros (los usa el sistema), ~50 USDT en Spot y ~35 TRX (no los toca el sistema).
-- Tests: 169 pasan (`cd fabrica && python -m pytest -q`).
+- Tests: 170 pasan (`cd fabrica && python -m pytest -q`).
 - Problemas ya resueltos que pueden volver: Telegram cortando las esperas largas (ahora pasa solo a conexiones cortas); ciclo cortado por una actualización (se retoma solo); caída del servidor por memoria (n8n apagado; el ciclo usa un proceso nuevo por moneda).
 
 ## Próximos pasos
