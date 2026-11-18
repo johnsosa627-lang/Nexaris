@@ -57,6 +57,7 @@ class Servicio:
         self._procesado = {}
         self._ultima_vigilancia = 0.0
         self._ultimo_radar = 0.0
+        self._ultimo_clima = 0.0
         self.liga.e.setdefault("tareas", {})
         self.radar = None
         if cfg.get("radar", {}).get("activo"):
@@ -70,6 +71,7 @@ class Servicio:
         if self.reloj() - self._ultima_vigilancia >= self.cfg["liga"]["intervalo_vigilancia"]:
             self._ultima_vigilancia = self.reloj()
             self.liga.vigilar()
+        self._clima()
         if self.radar and self.reloj() - self._ultimo_radar >= self.cfg["radar"]["intervalo_min"] * 60:
             self._ultimo_radar = self.reloj()
             self.radar.revisar()
@@ -84,6 +86,20 @@ class Servicio:
                 log.exception("Error en el bucle")
                 self.liga._aviso_unico(f"error-{type(e).__name__}", texto_error(e))
             time.sleep(5)
+
+    def _clima(self):
+        """Cada 15 min: clima del mercado con las velas de 4 h de Bitcoin (alcista / bajista / lateral)."""
+        c = self.cfg.get("clima") or {}
+        if not c.get("activo") or self.reloj() - self._ultimo_clima < 15 * 60:
+            return
+        self._ultimo_clima = self.reloj()
+        try:
+            from .clima import clima_actual
+            ahora_ms = int(self.reloj() * 1000)
+            velas = self.mercado.velas("BTC/USDT:USDT", "4h", 400, ahora_ms)
+            self.liga.actualizar_clima(clima_actual(velas, ahora_ms, c.get("adx_min", 20), c.get("ema", 200)))
+        except Exception as e:  # noqa: BLE001 - sin clima, los bots operan como siempre
+            log.warning("Clima: %s", e)
 
     def _velas(self):
         ahora_ms = int(self.reloj() * 1000) - 5_000  # 5 s de margen para que Binance cierre la vela
@@ -326,6 +342,7 @@ class Servicio:
         tg.registrar("/diagnostico", self.cmd_diagnostico)
         tg.registrar("/graduacion", lambda a: self.liga.texto_preparacion())
         tg.registrar("/radar", lambda a: self.radar.texto() if self.radar else "El radar externo está apagado (config.yaml).")
+        tg.registrar("/clima", lambda a: L.texto_clima())
         tg.registrar("/noticias", lambda a: self.radar.texto_noticias() if self.radar else "El radar externo está apagado.")
         tg.registrar("/ayuda", lambda a: AYUDA)
         tg.registrar("/start", lambda a: AYUDA)
@@ -398,6 +415,7 @@ AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/h
          "/bots — titulares y suplentes\n/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/noticias — qué hizo Bitcoin después de cada tipo de noticia (registro)\n"
+         "/clima — clima del mercado (alcista, bajista o lateral) y qué titulares operan en él\n"
          "/ciclo — correr la fábrica ahora (inventar y examinar estrategias)\n"
          "/salud — chequeo: ¿datos completos? ¿la fábrica trabaja? ¿hay disco?\n"
          "/diagnostico — ¿hubo señales que no se operaron? (revisa cada bot)\n"

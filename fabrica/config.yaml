@@ -160,6 +160,16 @@ real_parcial:
     min_operaciones: 10
     min_r_promedio: 0.2
 
+# Clima del mercado (Bitcoin 4 h): alcista / bajista / lateral. Un titular no entra en un clima en el que no gana:
+# con min_ops_vivo+ operaciones en vivo en ese clima manda lo vivido; si no, sus pruebas (min_ops_pruebas+).
+# Los suplentes no se frenan (siguen practicando y juntando datos en todos los climas).
+clima:
+  activo: true
+  adx_min: 20
+  ema: 200
+  min_ops_pruebas: 20
+  min_ops_vivo: 5
+
 # Examen de graduación para pasar a plata real (solo informa: el sistema NUNCA cambia de modo solo)
 preparacion_real:
   min_semanas_practica: 4        # semanas operando en simulado
