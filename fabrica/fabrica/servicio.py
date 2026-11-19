@@ -436,7 +436,7 @@ def configurar_log(carpeta):
 
 
 def main():
-    from .ejecutor import EjecutorBinance, Mercado, crear_cliente_privado
+    from .ejecutor import Mercado, crear_cliente_privado, ejecutor_para
     from .liga import Liga
     from .telegram import Telegram, limpiar_token
     cfg = cargar_config()
@@ -446,8 +446,15 @@ def main():
     token = limpiar_token(os.getenv("TELEGRAM_TOKEN", ""))
     tg = Telegram(token, chat.strip().rsplit("=", 1)[-1].strip())
     modo = (os.getenv("MODO") or "papel").strip().lower()
+    exchange = (os.getenv("EXCHANGE") or "binance").strip().lower()  # 'bybit' = cuenta de fondeo (apagado por defecto)
+    Ejecutor = ejecutor_para(exchange)
     clave, secreto = os.getenv("BINANCE_API_KEY", ""), os.getenv("BINANCE_API_SECRET", "")
     avisos = []
+    if exchange not in ("binance", "bybit"):
+        avisos.append(f"EXCHANGE '{exchange}' no existe; uso 'binance'.")
+        exchange, Ejecutor = "binance", ejecutor_para("binance")
+    if exchange == "bybit":
+        avisos.append("⚠️ EXCHANGE=bybit: operando sobre Bybit (cuenta de fondeo), no sobre Binance.")
     if modo not in ("papel", "testnet", "real"):
         avisos.append(f"MODO '{modo}' no existe; uso 'papel'.")
         modo = "papel"
@@ -456,8 +463,8 @@ def main():
         modo = "papel"
     ejecutor = None
     if modo in ("testnet", "real"):
-        ejecutor = EjecutorBinance(crear_cliente_privado(modo, clave, secreto), cfg["riesgo"]["apalancamiento_max"],
-                                   cfg["costos"]["comision_pct"])
+        ejecutor = Ejecutor(crear_cliente_privado(modo, clave, secreto, exchange), cfg["riesgo"]["apalancamiento_max"],
+                            cfg["costos"]["comision_pct"])
     if ejecutor is not None:
         try:
             saldo = ejecutor.saldo()

@@ -1,6 +1,6 @@
 import pytest
 
-from fabrica.ejecutor import EjecutorBinance, Mercado
+from fabrica.ejecutor import EjecutorBinance, EjecutorBybit, Mercado, ejecutor_para
 from tests.conftest import H, T0
 
 
@@ -52,6 +52,32 @@ def test_ejecutor_abre_protege_y_cierra():
                    "info": {"realizedPnl": "0.6"}}]
     salida, pnl = ej.cerrar("XRP/USDT:USDT", {"lado": -1, "entrada": 0.5, "cantidad": 30, "abierta_ts": 0})
     assert ("market", "buy", 30.0, {"reduceOnly": True}) in cli.ordenes
+    assert salida == pytest.approx(0.48) and pnl == pytest.approx(0.6 - 0.0147)
+
+
+def test_ejecutor_para_elige_clase():
+    assert ejecutor_para("binance") is EjecutorBinance
+    assert ejecutor_para("bybit") is EjecutorBybit
+    assert ejecutor_para(None) is EjecutorBinance        # por defecto, binance
+    assert ejecutor_para("otro") is EjecutorBinance      # desconocido -> binance
+
+
+def test_bybit_lee_saldo_unificado():
+    class CliBybit(CcxtFalso):
+        def fetch_balance(self):  # Bybit no trae info.assets, sí el total unificado
+            return {"USDT": {"total": 237.5}}
+    ej = EjecutorBybit(CliBybit(), 3)
+    assert ej.saldo() == pytest.approx(237.5)
+
+
+def test_bybit_cierra_leyendo_execpnl():
+    cli = CcxtFalso()
+    ej = EjecutorBybit(cli, 3)
+    # Bybit pone la ganancia realizada en info.execPnl (no en realizedPnl)
+    cli.trades = [{"side": "sell", "amount": 30, "price": 0.5, "fee": {"cost": 0.0075, "currency": "USDT"}, "info": {}},
+                  {"side": "buy", "amount": 30, "price": 0.48, "fee": {"cost": 0.0072, "currency": "USDT"},
+                   "info": {"execPnl": "0.6"}}]
+    salida, pnl = ej.cerrar("XRP/USDT:USDT", {"lado": -1, "entrada": 0.5, "cantidad": 30, "abierta_ts": 0})
     assert salida == pytest.approx(0.48) and pnl == pytest.approx(0.6 - 0.0147)
 
 
