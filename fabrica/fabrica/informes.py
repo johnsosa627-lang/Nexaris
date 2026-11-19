@@ -4,7 +4,7 @@ import os
 
 from .filtros import FILTROS
 
-NOMBRES_TF = {"15m": "velas de 15 minutos", "1h": "velas de 1 hora", "4h": "velas de 4 horas"}
+NOMBRES_TF = {"15m": "velas de 15 minutos", "30m": "velas de 30 minutos", "1h": "velas de 1 hora", "4h": "velas de 4 horas"}
 
 
 def _moneda(simbolo):
