@@ -80,6 +80,17 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
+## Estado al 20/11/2026 (adelantamos la decisión del domingo)
+
+- **"Lo del domingo" se hizo el 20/11** (jueves), todo 🟢: revisado /estado, /bots, /informe, /graduacion.
+- **Cuenta REAL subida a 80 USDT:** `real_parcial.capital` 50 → 80. John pasó 38 USDT de Spot a Futuros real (quedó ~90,93 en la billetera; el sistema arriesga sobre 80, el resto es colchón). El riesgo sigue 1% por operación; los frenos no cambian.
+- **Dos bots operan con plata real:** `943f10ba0e` (XRP 1h, elegido a mano) y `6cee94d171` (XRP 1h), que pasó solo por el pase automático (10 ops, +1.06R). Comparten los mismos 80 USDT y el tope de 3% abierto: más bots = más operaciones, no más riesgo. John eligió dejar los dos (20/11).
+- **Cuenta demo:** 103,60 USDT (máximo 103,60). 7 titulares, 28 suplentes. Clima: bajista.
+- **Aplicado el 20/11 (PR #79 + #80):** temporalidad 30m (más señales, misma exigencia; baja la historia sola), ejecutor de Bybit listo pero APAGADO (`EXCHANGE=bybit`, para fondeo), variedad del banco, y el comando **/racha** (ganadas/perdidas por titular y cuánto falta para 20 ops). Tests: 175 pasan.
+- **Bug que ya se arregló (20/11):** al cambiar a Bybit saqué `EjecutorBinance` de un import y el contenedor se cerraba al arrancar con claves reales (la versión vieja siguió andando, no se cortó el trading). Arreglado y con un test estático (pyflakes) que frena cualquier nombre sin definir.
+- **Pendiente:** reiniciar el servidor ("System restart required"); se dejó para otro día porque estaba bajando la historia de 30m. No corre `actualizar.sh` con un ciclo en marcha (el ciclo es los domingos 3:00 UTC).
+- **Rotar** el token de Telegram y la contraseña de Easypanel (quedaron a la vista en fotos).
+
 ## Estado al 15/11/2026
 
 - **Cuenta de práctica (demo de Binance):** 102,74 USDT (arrancó en 100; mínimo ~91,9 el 5/11). Semana del 8 al 15/11: titulares +12,22 USDT. 7 titulares y ~29 suplentes. Banco: 276 estrategias. Examen de graduación: 4 de 5 ✅ (falta un bot con 30+ operaciones ganando; el que más tiene lleva 10).
