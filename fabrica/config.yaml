@@ -9,7 +9,8 @@ datos:
              DOGE/USDT:USDT, ADA/USDT:USDT, AVAX/USDT:USDT, LINK/USDT:USDT, LTC/USDT:USDT,
              TRX/USDT:USDT, DOT/USDT:USDT, NEAR/USDT:USDT, ATOM/USDT:USDT, BCH/USDT:USDT]
   # (las 5 últimas se sumaron el 18/11/2026: grandes, con mucho volumen y futuros desde 2020-2021)
-  temporalidades: [15m, 1h, 4h]
+  temporalidades: [15m, 30m, 1h, 4h]
+  # 30m sumada el 19/11/2026 para que haya más señales (sin aflojar los exámenes)
   # Desde qué fecha bajar historia
   desde: "2021-01-01"
   # Últimos meses guardados aparte como "examen final" (no se usan para crear estrategias)
@@ -63,6 +64,9 @@ generador:
     15m:
       candidatas: 60
       operaciones_por_anio_objetivo: 300
+    30m:
+      candidatas: 45
+      operaciones_por_anio_objetivo: 220
   # Semilla para poder repetir exactamente un ciclo (vacío = al azar)
   semilla:
   # Núcleos de CPU a usar (0 = todos)
@@ -152,7 +156,7 @@ liga:
 # El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Frenos propios (diario y total).
 real_parcial:
   bots: ["943f10ba0e"]   # XRP 1h: subió a titular por ganar practicando (elegido por John, 2/11/2026)
-  capital: 50       # USDT de la cuenta real con los que se calcula el riesgo (1% = 0,50 por operación)
+  capital: 80       # USDT de la cuenta real con los que se calcula el riesgo (1% = 0,80 por operación). Subido 50->80 el 20/11/2026 (John), cuenta real en verde
   # Pase automático: un titular con estas operaciones en vivo (práctica + real) y este promedio de R pasa solo
   # a plata real; si deja de cumplirlo, vuelve a la demo. Comparten el mismo capital y frenos (no sube el riesgo).
   auto:

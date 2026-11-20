@@ -27,7 +27,7 @@ from .motor import Costos
 
 log = logging.getLogger("fabrica")
 
-VECINAS = {"15m": ["1h"], "1h": ["15m", "4h"], "4h": ["1h"]}
+VECINAS = {"15m": ["30m"], "30m": ["15m", "1h"], "1h": ["30m", "4h"], "4h": ["1h"]}
 MIN_VELAS = 1000
 
 

@@ -331,6 +331,7 @@ class Servicio:
         tg.registrar("/estado", lambda a: L.texto_estado())
         tg.registrar("/hoy", lambda a: L.texto_hoy())
         tg.registrar("/bots", lambda a: L.texto_bots())
+        tg.registrar("/racha", lambda a: L.texto_racha())
         tg.registrar("/fabrica", lambda a: self.resumen_fabrica())
         tg.registrar("/informe", lambda a: L.texto_semana() + "\n\n" + self.resumen_fabrica() + "\n\n" + L.texto_preparacion())
         tg.registrar("/pausar", self.cmd_pausar)
@@ -412,7 +413,8 @@ class Servicio:
 
 
 AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/hoy — resultado de hoy\n"
-         "/bots — titulares y suplentes\n/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
+         "/bots — titulares y suplentes\n/racha — ganadas/perdidas de cada titular y cuánto falta para 20 ops\n"
+         "/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/noticias — qué hizo Bitcoin después de cada tipo de noticia (registro)\n"
          "/clima — clima del mercado (alcista, bajista o lateral) y qué titulares operan en él\n"
@@ -436,7 +438,7 @@ def configurar_log(carpeta):
 
 
 def main():
-    from .ejecutor import EjecutorBinance, Mercado, crear_cliente_privado
+    from .ejecutor import Mercado, crear_cliente_privado, ejecutor_para
     from .liga import Liga
     from .telegram import Telegram, limpiar_token
     cfg = cargar_config()
@@ -446,8 +448,15 @@ def main():
     token = limpiar_token(os.getenv("TELEGRAM_TOKEN", ""))
     tg = Telegram(token, chat.strip().rsplit("=", 1)[-1].strip())
     modo = (os.getenv("MODO") or "papel").strip().lower()
+    exchange = (os.getenv("EXCHANGE") or "binance").strip().lower()  # 'bybit' = cuenta de fondeo (apagado por defecto)
+    Ejecutor = ejecutor_para(exchange)
     clave, secreto = os.getenv("BINANCE_API_KEY", ""), os.getenv("BINANCE_API_SECRET", "")
     avisos = []
+    if exchange not in ("binance", "bybit"):
+        avisos.append(f"EXCHANGE '{exchange}' no existe; uso 'binance'.")
+        exchange, Ejecutor = "binance", ejecutor_para("binance")
+    if exchange == "bybit":
+        avisos.append("⚠️ EXCHANGE=bybit: operando sobre Bybit (cuenta de fondeo), no sobre Binance.")
     if modo not in ("papel", "testnet", "real"):
         avisos.append(f"MODO '{modo}' no existe; uso 'papel'.")
         modo = "papel"
@@ -456,8 +465,8 @@ def main():
         modo = "papel"
     ejecutor = None
     if modo in ("testnet", "real"):
-        ejecutor = EjecutorBinance(crear_cliente_privado(modo, clave, secreto), cfg["riesgo"]["apalancamiento_max"],
-                                   cfg["costos"]["comision_pct"])
+        ejecutor = Ejecutor(crear_cliente_privado(modo, clave, secreto, exchange), cfg["riesgo"]["apalancamiento_max"],
+                            cfg["costos"]["comision_pct"])
     if ejecutor is not None:
         try:
             saldo = ejecutor.saldo()

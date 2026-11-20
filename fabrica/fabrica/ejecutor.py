@@ -1,8 +1,11 @@
-"""Conexión con Binance Futures USDT-M.
+"""Conexión con los exchanges de futuros USDT-M.
 
-- Mercado: datos públicos (velas, precio, mínimos). Siempre de la cuenta principal, sin claves.
+- Mercado: datos públicos (velas, precio, mínimos). Siempre de Binance (la cuenta principal), sin claves.
 - EjecutorBinance: órdenes de los TITULARES en Demo Trading (testnet) o real. Margen aislado,
   stop-loss y take-profit puestos en el exchange (reduceOnly) y vigilados además por software.
+- EjecutorBybit: lo mismo sobre Bybit, pensado para las cuentas de fondeo (ej. HyroTrader, que
+  corre el bot en una subcuenta de Bybit). APAGADO por defecto: solo se usa si EXCHANGE=bybit.
+  Como la API es casi idéntica (ccxt), hereda todo de EjecutorBinance y solo cambia lo mínimo.
 """
 import logging
 import time
@@ -75,11 +78,27 @@ class Mercado:
             return 0.0
 
 
-def crear_cliente_privado(modo: str, api_key: str, secret: str):
+def crear_cliente_privado(modo: str, api_key: str, secret: str, exchange: str = "binance"):
+    """Cliente privado de ccxt. `exchange` por defecto es binance (no cambia nada de lo que ya anda)."""
+    if (exchange or "binance").strip().lower() == "bybit":
+        return crear_cliente_bybit(modo, api_key, secret)
     cliente = _ccxt().binanceusdm({"apiKey": api_key, "secret": secret, "enableRateLimit": True,
                                    "options": {"adjustForTimeDifference": True}})
     if modo == "testnet":
         cliente.enable_demo_trading(True)  # Binance reemplazó el testnet de futuros por "Demo Trading"
+    return cliente
+
+
+def crear_cliente_bybit(modo: str, api_key: str, secret: str):
+    """Cliente de Bybit para futuros perpetuos USDT (categoría linear). Para cuentas de fondeo.
+
+    `modo` 'testnet'/'demo' usa la cuenta Demo de Bybit (la que piden los exámenes de fondeo);
+    'real' opera en vivo. Las claves nunca se guardan en el repo: llegan por variables de entorno.
+    """
+    cliente = _ccxt().bybit({"apiKey": api_key, "secret": secret, "enableRateLimit": True,
+                             "options": {"defaultType": "swap", "adjustForTimeDifference": True}})
+    if modo in ("testnet", "demo"):
+        cliente.enable_demo_trading(True)
     return cliente
 
 
@@ -194,6 +213,11 @@ class EjecutorBinance:
         self.cancelar_protecciones(simbolo)
         return self.resultado_cierre(simbolo, pos, precio_orden)
 
+    @staticmethod
+    def _realizado_de_trade(t: dict) -> float:
+        """Ganancia/pérdida realizada de una operación (Binance la pone en info.realizedPnl)."""
+        return float((t.get("info") or {}).get("realizedPnl", 0) or 0)
+
     def resultado_cierre(self, simbolo: str, pos: dict, precio_estimado: Optional[float] = None) -> Tuple[float, float]:
         """Precio de salida y resultado en USDT, leídos de las operaciones reales del exchange."""
         self.cancelar_protecciones(simbolo)
@@ -208,7 +232,7 @@ class EjecutorBinance:
             if cierres:
                 cantidad = sum(float(t["amount"]) for t in cierres)
                 salida = sum(float(t["price"]) * float(t["amount"]) for t in cierres) / cantidad
-                realizado = sum(float((t.get("info") or {}).get("realizedPnl", 0) or 0) for t in cierres)
+                realizado = sum(self._realizado_de_trade(t) for t in cierres)
                 comisiones = sum(float((t.get("fee") or {}).get("cost") or 0) for t in trades
                                  if (t.get("fee") or {}).get("currency") in (None, "USDT"))
                 return salida, realizado - comisiones
@@ -216,3 +240,30 @@ class EjecutorBinance:
         salida = float(precio_estimado or self.precio(simbolo))
         pnl = pos["lado"] * (salida - pos["entrada"]) * pos["cantidad"] - self.comision * (pos["entrada"] + salida) * pos["cantidad"]
         return salida, pnl + pos.get("realizado_usdt", 0.0)  # más lo cobrado en una salida parcial
+
+
+class EjecutorBybit(EjecutorBinance):
+    """Ejecutor para Bybit (cuentas de fondeo). APAGADO por defecto.
+
+    Mismas órdenes que en Binance a través de ccxt; solo cambian dos detalles del exchange:
+    - el saldo se lee del balance unificado (Bybit no trae `info.assets[].walletBalance`);
+    - la ganancia realizada por operación viene en `info.execPnl`, no en `info.realizedPnl`.
+    """
+
+    def saldo(self) -> float:
+        b = self.cliente.fetch_balance()
+        return float((b.get("USDT") or {}).get("total") or 0.0)
+
+    @staticmethod
+    def _realizado_de_trade(t: dict) -> float:
+        info = t.get("info") or {}
+        valor = info.get("execPnl", info.get("realizedPnl"))
+        return float(valor or 0)
+
+
+EJECUTORES = {"binance": EjecutorBinance, "bybit": EjecutorBybit}
+
+
+def ejecutor_para(exchange: str = "binance"):
+    """Devuelve la clase de ejecutor según el exchange (binance por defecto)."""
+    return EJECUTORES.get((exchange or "binance").strip().lower(), EjecutorBinance)
