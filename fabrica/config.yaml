@@ -156,7 +156,7 @@ liga:
 # El bot elegido igual tiene que venir ganando en vivo; si no, sigue en práctica. Frenos propios (diario y total).
 real_parcial:
   bots: ["943f10ba0e"]   # XRP 1h: subió a titular por ganar practicando (elegido por John, 2/11/2026)
-  capital: 50       # USDT de la cuenta real con los que se calcula el riesgo (1% = 0,50 por operación)
+  capital: 80       # USDT de la cuenta real con los que se calcula el riesgo (1% = 0,80 por operación). Subido 50->80 el 20/11/2026 (John), cuenta real en verde
   # Pase automático: un titular con estas operaciones en vivo (práctica + real) y este promedio de R pasa solo
   # a plata real; si deja de cumplirlo, vuelve a la demo. Comparten el mismo capital y frenos (no sube el riesgo).
   auto:
