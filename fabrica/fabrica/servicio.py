@@ -438,7 +438,7 @@ def configurar_log(carpeta):
 
 
 def main():
-    from .ejecutor import Mercado, crear_cliente_privado, ejecutor_para
+    from .ejecutor import EjecutorBinance, Mercado, crear_cliente_privado, ejecutor_para
     from .liga import Liga
     from .telegram import Telegram, limpiar_token
     cfg = cargar_config()
