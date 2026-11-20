@@ -915,6 +915,33 @@ class Liga:
             base += f"\nEl freno diario está activo ({c['freno_dia']}): mañana se vuelve a operar."
         return f"📅 {base}\nLa cuenta tiene {c['equity']:.2f} USDT."
 
+    def texto_racha(self, meta: int = 20) -> str:
+        """Resumen de la racha de cada titular: ganadas/perdidas, R, USDT y cuánto falta para `meta`
+        operaciones (el mínimo para confiar en un bot, p. ej. antes de una cuenta de fondeo)."""
+        reales = set(self.bots_reales()) if self.ejecutor_real is not None else set()
+        titulares = self.bots("titular") or []
+        lineas = ["🔥 RACHA — operaciones en vivo de los titulares", ""]
+        tot_n = tot_g = 0
+        tot_r = tot_pnl = 0.0
+        for b in titulares:
+            n, g, r, pnl = self._stats(b, rol="titular")
+            tot_n += n; tot_g += g; tot_r += r; tot_pnl += pnl
+            pct = g * 100 / n if n else 0
+            falta = max(0, meta - n)
+            resto = f"faltan {falta} para {meta}" if falta else f"✅ pasó las {meta}"
+            marca = "💵 " if b["id"] in reales else ""
+            lineas.append(f"{marca}{b['id']} {_moneda(b['simbolo'])} {b['tf']}: "
+                          f"{n} ops · {g}✅/{n - g}❌ ({pct:.0f}%) · {r:+.1f}R ({pnl:+.2f} USDT) · {resto}")
+        if not titulares:
+            lineas.append("(todavía no hay titulares operando)")
+        else:
+            pct = tot_g * 100 / tot_n if tot_n else 0
+            lineas += ["", f"📊 TOTAL: {tot_n} ops · {tot_g}✅/{tot_n - tot_g}❌ ({pct:.0f}%) · "
+                           f"{tot_r:+.1f}R ({tot_pnl:+.2f} USDT)"]
+        if reales:
+            lineas.append(f"💵 = opera con plata real ({', '.join(sorted(reales))})")
+        return "\n".join(lineas)
+
     def texto_bots(self) -> str:
         lineas = ["🏆 TITULARES"]
         for b in self.bots("titular") or []:

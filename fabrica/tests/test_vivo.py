@@ -654,6 +654,23 @@ def test_informe_semanal_no_suma_la_practica_de_un_titular_nuevo(tmp_path):
     assert "1 operaciones en vivo, 1 ganadas" in liga.texto_bots()
 
 
+def test_racha_cuenta_ganadas_perdidas_y_lo_que_falta(tmp_path):
+    liga, _, _ = liga_papel(tmp_path)
+    liga.sincronizar_banco([registro(1)])
+    liga.completar_titulares()
+    bot = liga.e["bots"]["bot1"]
+    hoy = liga.ahora().isoformat(timespec="seconds")
+    bot["trades"] = [{"fecha": hoy, "rol": "suplente", "r": 5.0, "pnl_usdt": 5.0},   # práctica: no cuenta
+                     {"fecha": hoy, "rol": "titular", "r": 2.0, "pnl_usdt": 2.0},
+                     {"fecha": hoy, "rol": "titular", "r": -1.0, "pnl_usdt": -1.0},
+                     {"fecha": hoy, "rol": "titular", "r": 1.5, "pnl_usdt": 1.5}]
+    texto = liga.texto_racha()
+    assert "3 ops · 2✅/1❌ (67%)" in texto          # solo las 3 de titular, no la práctica
+    assert "+2.5R" in texto and "+2.50 USDT" in texto
+    assert "faltan 17 para 20" in texto
+    assert "📊 TOTAL: 3 ops · 2✅/1❌ (67%)" in texto
+
+
 def test_una_exploracion_sube_a_titular_solo_si_gana_practicando(tmp_path):
     liga, mensajes, _ = liga_papel(tmp_path)
     liga.sincronizar_banco([{**registro(1), "nivel": "exploracion"}])
