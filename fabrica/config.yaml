@@ -176,6 +176,9 @@ fondeo:
   perdida_dia_pct: 4.0    # pérdida máxima permitida en un día
   perdida_total_pct: 6.0  # pérdida máxima total
   trailing: true          # el límite total sigue al pico (trailing) o es fijo desde el inicio
+  # Margen de seguridad: con el modo examen prendido, el sistema FRENA al llegar a este % del límite
+  # (0.8 = frena al 80% del límite, antes de reventarlo). Solo afecta a la cuenta principal en modo examen.
+  margen_freno: 0.8
 
 # Riesgo por bot según lo demostrado en vivo. APAGADO: se activa solo si John lo decide (es subir el riesgo).
 # Con min_operaciones+ en vivo: ganancia comprobada (t >= t_minimo) -> riesgo x factor_bueno; promedio <= 0 ->

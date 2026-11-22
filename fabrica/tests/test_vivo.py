@@ -671,6 +671,17 @@ def test_racha_cuenta_ganadas_perdidas_y_lo_que_falta(tmp_path):
     assert "📊 TOTAL: 3 ops · 2✅/1❌ (67%)" in texto
 
 
+def test_frenos_examen_fondeo_mas_ajustados_solo_si_esta_prendido(tmp_path):
+    liga, _, _ = liga_papel(tmp_path)
+    # Apagado (lo de siempre): usa los frenos normales del config (3% diario, 15% total)
+    liga.cfg["fondeo"] = {"activo": False}
+    assert liga._limites_frenos() == (3.0, 15.0)
+    # Prendido: frena al 80% de los límites del examen (6% total -> 4.8%); el diario 3% ya es más estricto que 4%
+    liga.cfg["fondeo"] = {"activo": True, "perdida_dia_pct": 4.0, "perdida_total_pct": 6.0, "margen_freno": 0.8}
+    dia, total = liga._limites_frenos()
+    assert dia == 3.0 and round(total, 2) == 4.8
+
+
 def test_una_exploracion_sube_a_titular_solo_si_gana_practicando(tmp_path):
     liga, mensajes, _ = liga_papel(tmp_path)
     liga.sincronizar_banco([{**registro(1), "nivel": "exploracion"}])
