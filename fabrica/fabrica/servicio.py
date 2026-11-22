@@ -332,6 +332,7 @@ class Servicio:
         tg.registrar("/hoy", lambda a: L.texto_hoy())
         tg.registrar("/bots", lambda a: L.texto_bots())
         tg.registrar("/racha", lambda a: L.texto_racha())
+        tg.registrar("/examen", lambda a: L.texto_examen())
         tg.registrar("/fabrica", lambda a: self.resumen_fabrica())
         tg.registrar("/informe", lambda a: L.texto_semana() + "\n\n" + self.resumen_fabrica() + "\n\n" + L.texto_preparacion())
         tg.registrar("/pausar", self.cmd_pausar)
@@ -414,6 +415,7 @@ class Servicio:
 
 AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/hoy — resultado de hoy\n"
          "/bots — titulares y suplentes\n/racha — ganadas/perdidas de cada titular y cuánto falta para 20 ops\n"
+         "/examen — examen de fondeo: cuánto falta para la meta y margen hasta los límites (si está prendido)\n"
          "/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/noticias — qué hizo Bitcoin después de cada tipo de noticia (registro)\n"

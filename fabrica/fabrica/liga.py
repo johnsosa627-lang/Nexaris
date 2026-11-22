@@ -915,6 +915,11 @@ class Liga:
             base += f"\nEl freno diario está activo ({c['freno_dia']}): mañana se vuelve a operar."
         return f"📅 {base}\nLa cuenta tiene {c['equity']:.2f} USDT."
 
+    def texto_examen(self) -> str:
+        """Tablero del examen de fondeo (si está prendido en config: fondeo.activo)."""
+        from . import fondeo
+        return fondeo.texto(self.cfg, self.e["cuenta"])
+
     def texto_racha(self, meta: int = 20) -> str:
         """Resumen de la racha de cada titular: ganadas/perdidas, R, USDT y cuánto falta para `meta`
         operaciones (el mínimo para confiar en un bot, p. ej. antes de una cuenta de fondeo)."""
