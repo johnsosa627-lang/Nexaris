@@ -164,6 +164,19 @@ real_parcial:
     min_operaciones: 10
     min_r_promedio: 0.2
 
+# Modo examen de fondeo (ej. HyroTrader). APAGADO: se prende cuando corramos un examen real (normalmente con
+# EXCHANGE=bybit). Solo LEE la cuenta y avisa (comando /examen) cuánto falta para la meta y cuánto margen queda
+# hasta los límites. No cambia cómo opera. Poner las reglas exactas de la empresa antes de prender.
+fondeo:
+  activo: false
+  empresa: HyroTrader
+  fase: "1 paso"
+  capital: 100            # tamaño de la cuenta del examen (100 para probar en demo de Bybit; 10000 en la real)
+  meta_pct: 10.0          # ganancia objetivo para aprobar
+  perdida_dia_pct: 4.0    # pérdida máxima permitida en un día
+  perdida_total_pct: 6.0  # pérdida máxima total
+  trailing: true          # el límite total sigue al pico (trailing) o es fijo desde el inicio
+
 # Riesgo por bot según lo demostrado en vivo. APAGADO: se activa solo si John lo decide (es subir el riesgo).
 # Con min_operaciones+ en vivo: ganancia comprobada (t >= t_minimo) -> riesgo x factor_bueno; promedio <= 0 ->
 # x factor_malo; si no, igual. El tope de 3% abierto en total y los frenos no cambian.
