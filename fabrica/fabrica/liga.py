@@ -535,11 +535,25 @@ class Liga:
             return "radar externo: " + radar.get("motivo", "")
         return None
 
+    def _limites_frenos(self):
+        """(% diario, % total) para frenar la cuenta principal. En modo examen de fondeo usa los límites
+        del examen con un margen de seguridad: frena ANTES del límite real para no reventar el examen.
+        Con el modo examen apagado devuelve los de siempre (no cambia nada)."""
+        dia = float(self.R["perdida_max_dia_pct"])
+        total = float(self.R["caida_max_desde_pico_pct"])
+        f = self.cfg.get("fondeo") or {}
+        if f.get("activo"):
+            margen = float(f.get("margen_freno", 0.8))
+            dia = min(dia, float(f.get("perdida_dia_pct", 4.0)) * margen)
+            total = min(total, float(f.get("perdida_total_pct", 6.0)) * margen)
+        return dia, total
+
     def _controlar_cuenta(self):
         c = self.e["cuenta"]
+        dia_pct, total_pct = self._limites_frenos()
         if not c["freno_dia"]:
             motivo = C.freno_diario(c["pnl_hoy"], c["racha_hoy"], c["inicio_dia"],
-                                    self.R["perdida_max_dia_pct"], self.R["perdidas_seguidas_max_dia"])
+                                    dia_pct, self.R["perdidas_seguidas_max_dia"])
             if motivo:
                 c["freno_dia"] = motivo
                 self.evento(f"🧯 Freno diario: {motivo}. No abro más operaciones hasta mañana (las abiertas siguen con su stop).")
@@ -557,7 +571,7 @@ class Liga:
             self.evento(f"🛑💵 FRENO TOTAL de la cuenta REAL: cayó {caida:.1f}% ({cr['pico']:.2f} → {cr['equity']:.2f} "
                         "USDT). No abro más operaciones con plata real; las abiertas siguen con su stop. Todo sigue en "
                         "la cuenta de práctica.")
-        if not self.e["apagado"] and C.freno_total(c["equity"], c["pico"], self.R["caida_max_desde_pico_pct"]):
+        if not self.e["apagado"] and C.freno_total(c["equity"], c["pico"], total_pct):
             caida = (c["pico"] - c["equity"]) / c["pico"] * 100
             self.cerrar_todo("freno total")
             self.e.update(apagado=True, motivo_apagado=f"la cuenta cayó {caida:.1f}% desde su máximo")

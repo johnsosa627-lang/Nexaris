@@ -80,6 +80,14 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
+## Estado al 22/11/2026 (decisión de fondeo + modo examen listo)
+
+- **Decisión de John (22/11):** entrar a una cuenta de fondeo de verdad después de la revisión del domingo próximo, aunque sea poco tiempo. John asume el riesgo ("si va mal es mi riesgo"). Renovó Hostinger por el mes. Rol de la IA: que si lo hacemos, sea lo más inteligente posible (ensayo en demo de Bybit antes de pagar, empezar por el examen más chico ~$89).
+- **Bybit probado hoy (22/11):** John creó cuenta Bybit + demo + claves de API (solo operar, sin retiros, sin IP, validez 3 meses). Se corrió `fabrica/probar_bybit.py` en el servidor: conectó a la demo (saldo 50.000 USDT de mentira) y la prueba `--orden XRP` abrió, puso stop y cerró → "el ejecutor de Bybit funciona". (Las claves demo se vieron en fotos; conviene recrearlas antes del examen real.)
+- **Modo examen listo (apagado):** config `fondeo.activo:false`. Trae: comando `/examen` (cuánto falta para la meta y margen hasta los límites), y ahora el **freno del examen** — con el modo prendido, la cuenta principal frena al `margen_freno` (80%) del límite del examen (ej. total 6% → frena a 4.8%), para no reventarlo. Con el modo apagado NO cambia nada. 186 tests pasan.
+- **Plan de la semana:** lun-sáb los bots juntan operaciones; la IA deja listo el modo examen con las reglas de HyroTrader. Domingo: revisar `/racha` y `/informe`; si viene bien, arrancar el ensayo en Bybit demo (EXCHANGE=bybit + fondeo.activo:true). Cuando el ensayo aguante las reglas → pagar el examen real.
+- Pendiente menor: pulir `probar_bybit` para que no muestre el aviso de "trades >2 años" (usa fecha 0 en la prueba; inofensivo).
+
 ## Estado al 20/11/2026 (adelantamos la decisión del domingo)
 
 - **"Lo del domingo" se hizo el 20/11** (jueves), todo 🟢: revisado /estado, /bots, /informe, /graduacion.
