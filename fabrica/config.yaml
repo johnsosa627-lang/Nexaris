@@ -181,7 +181,7 @@ fondeo:
   margen_freno: 0.8
   # Riesgo por operación DENTRO del examen (más bajo que el 1% normal, para no pasarse de los límites de
   # drawdown). Gana más lento pero no revienta. /examen_prueba muestra con qué riesgo conviene. Solo en modo examen.
-  riesgo_pct: 0.4
+  riesgo_pct: 0.3   # elegido con /examen_prueba (20/11): 92% pasa / 0% rompe con el freno gradual
   # Freno gradual del drawdown: cuando la cuenta cae desde su máximo, achica el riesgo hasta este piso (0.25 =
   # 25% del riesgo cerca del límite). Frena de a poco antes de reventar y deja margen para recuperarse. 1.0 = apagado.
   taper_piso: 0.25
