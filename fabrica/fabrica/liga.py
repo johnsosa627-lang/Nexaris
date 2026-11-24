@@ -73,7 +73,10 @@ class Liga:
         self.ruta_csv = os.path.join(carpeta, "operaciones.csv")
         self._avisos = {}
         self._lock_guardar = threading.RLock()
-        capital = float(self.R["capital_inicial"])
+        # En modo examen de fondeo el capital de arranque es el del desafío (ej. 5.000), no el capital_inicial
+        # chico de Binance. Así las operaciones se dimensionan sobre la cuenta real del examen.
+        capital = float(f_fondeo["capital"]) if f_fondeo.get("activo") and f_fondeo.get("capital") \
+            else float(self.R["capital_inicial"])
         self.e = {"bots": {}, "pausado": False, "apagado": False, "motivo_apagado": "", "real_confirmado": False,
                   "cuenta": {"equity": capital, "pico": capital, "dia": "", "inicio_dia": capital,
                              "pnl_hoy": 0.0, "racha_hoy": 0, "freno_dia": ""}, "eventos": []}
