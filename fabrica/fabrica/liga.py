@@ -552,6 +552,17 @@ class Liga:
             total = min(total, float(f.get("perdida_total_pct", 6.0)) * margen)
         return dia, total
 
+    def _taper_examen(self):
+        """Freno gradual del drawdown (solo en modo examen): achica el riesgo a medida que la cuenta principal
+        cae desde su máximo, para no reventar el límite total. Fuera del examen devuelve 1.0 (no cambia nada)."""
+        f = self.cfg.get("fondeo") or {}
+        if not f.get("activo"):
+            return 1.0
+        from . import fondeo
+        c = self.e["cuenta"]
+        caida = (c["pico"] - c["equity"]) / c["pico"] if c.get("pico") else 0.0
+        return fondeo.taper(caida, float(f.get("perdida_total_pct", 6.0)) / 100.0, float(f.get("taper_piso", 0.25)))
+
     def _controlar_cuenta(self):
         c = self.e["cuenta"]
         dia_pct, total_pct = self._limites_frenos()
@@ -733,7 +744,7 @@ class Liga:
                 capital = self.capital()
                 abierto = sum(b["posicion"]["riesgo_usdt"] for b in self.bots("titular")
                               if b["posicion"] and b["posicion"].get("cuenta") != "real")
-            riesgo = capital * self.riesgo_frac * self.factor_riesgo(bot)
+            riesgo = capital * self.riesgo_frac * self.factor_riesgo(bot) * (self._taper_examen() if not real else 1.0)
             if not C.riesgo_abierto_permitido(abierto, riesgo, capital, self.R["riesgo_total_max_pct"]):
                 self._senal_perdida(bot, lado, f"el riesgo abierto total pasaría el {self.R['riesgo_total_max_pct']}%")
                 self._aviso_unico(f"riesgo-{bot['id']}", f"⏸ {bot['id']} tenía señal pero el riesgo abierto total llegaría "

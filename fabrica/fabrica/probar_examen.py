@@ -15,39 +15,44 @@ import logging
 log = logging.getLogger("fabrica")
 
 
-def simular(dias, meta_pct, dia_pct, total_pct, desde=0):
-    """Simula un examen arrancando en el índice `desde`. `dias` = lista de (fecha, retorno_fracción).
+def simular(dias, meta_pct, dia_pct, total_pct, factor_base=1.0, taper_piso=1.0, desde=0):
+    """Simula un examen arrancando en el índice `desde`. `dias` = lista de (fecha, retorno_fracción al riesgo base).
 
-    Devuelve (estado, info): estado en {"aprobado","roto_dia","roto_total","sin_terminar"}.
-    equity es la ganancia acumulada en fracción (0 = inicio, 0.10 = +10%).
+    `factor_base` escala los retornos por el riesgo elegido (ej. 0.3% / 1% = 0.3). `taper_piso` < 1.0 prende el
+    freno gradual del drawdown (achica el riesgo a medida que cae desde el pico). Devuelve (estado, info):
+    estado en {"aprobado","roto_dia","roto_total","sin_terminar"}; equity = ganancia acumulada (0.10 = +10%).
     """
+    from .fondeo import taper
     equity = 0.0
     pico = 0.0
     meta = meta_pct / 100.0
+    lim_total = total_pct / 100.0
     peor_dia = 0.0   # mayor pérdida en un día (fracción, positiva)
     peor_total = 0.0  # mayor caída desde el pico (fracción, positiva)
     for _, ret in dias[desde:]:
-        equity += ret
-        if ret < 0:
-            peor_dia = max(peor_dia, -ret)
-        if -ret >= dia_pct / 100.0:                     # rompió el límite diario
-            return "roto_dia", {"equity": equity, "peor_dia": max(peor_dia, -ret), "peor_total": peor_total}
+        factor = factor_base * taper(pico - equity, lim_total, taper_piso)
+        r = ret * factor
+        equity += r
+        if r < 0:
+            peor_dia = max(peor_dia, -r)
+        if -r >= dia_pct / 100.0:                       # rompió el límite diario
+            return "roto_dia", {"equity": equity, "peor_dia": max(peor_dia, -r), "peor_total": peor_total}
         pico = max(pico, equity)
         peor_total = max(peor_total, pico - equity)
-        if (pico - equity) >= total_pct / 100.0:        # rompió el límite total (trailing desde el pico)
+        if (pico - equity) >= lim_total:                # rompió el límite total (trailing desde el pico)
             return "roto_total", {"equity": equity, "peor_dia": peor_dia, "peor_total": pico - equity}
         if equity >= meta:                              # llegó a la meta: aprobado
             return "aprobado", {"equity": equity, "peor_dia": peor_dia, "peor_total": peor_total}
     return "sin_terminar", {"equity": equity, "peor_dia": peor_dia, "peor_total": peor_total}
 
 
-def simular_rolling(dias, meta_pct, dia_pct, total_pct):
+def simular_rolling(dias, meta_pct, dia_pct, total_pct, factor_base=1.0, taper_piso=1.0):
     """Corre el examen arrancando en cada día y resume. Devuelve un dict con el conteo y lo peor visto."""
     conteo = {"aprobado": 0, "roto_dia": 0, "roto_total": 0, "sin_terminar": 0}
     peor_dia = peor_total = 0.0
     arranques = max(1, len(dias))
     for i in range(arranques):
-        estado, info = simular(dias, meta_pct, dia_pct, total_pct, desde=i)
+        estado, info = simular(dias, meta_pct, dia_pct, total_pct, factor_base, taper_piso, desde=i)
         conteo[estado] += 1
         peor_dia = max(peor_dia, info["peor_dia"])
         peor_total = max(peor_total, info["peor_total"])
@@ -111,17 +116,17 @@ def texto(cfg):
     if not dias:
         return "🎓 Prueba del examen: el equipo no tiene retornos diarios para simular."
 
-    # Probar varios riesgos por operación (escala los retornos del backtest, que están al riesgo base).
+    # Probar varios riesgos por operación, con el freno gradual del drawdown prendido (taper_piso < 1).
+    piso = float(f.get("taper_piso", 0.25))
     niveles = sorted({base, 0.7, 0.5, riesgo_cfg, 0.3}, reverse=True)
     filas = []
     for rp in niveles:
         factor = rp / base if base else 1.0
-        serie = [(fecha, ret * factor) for fecha, ret in dias]
-        filas.append((rp, simular_rolling(serie, meta, dia, total)))
+        filas.append((rp, simular_rolling(dias, meta, dia, total, factor_base=factor, taper_piso=piso)))
 
     lineas = [f"🎓 PRUEBA DEL EXAMEN — {empresa} ({fase})",
               f"Reglas: ganar {meta:.0f}%, sin perder {dia:.0f}%/día ni {total:.0f}% total (trailing).",
-              f"Equipo: {len(equipo)} estrategias · {len(dias)} días de historial.",
+              f"Equipo: {len(equipo)} estrategias · {len(dias)} días · con freno gradual del drawdown 🛡️",
               "",
               "Riesgo/op → pasa / rompe (peor día / peor total):"]
     for rp, res in filas:
