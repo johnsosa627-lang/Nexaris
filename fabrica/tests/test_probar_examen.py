@@ -19,6 +19,15 @@ def test_rompe_por_limite_total_trailing():
     assert estado == "roto_total" and round(info["peor_total"], 4) == 0.06
 
 
+def test_freno_gradual_evita_romper_el_total():
+    # Esta serie rompe el total SIN freno gradual, pero con el freno (piso 0.25) no rompe.
+    dias = [("d1", 0.05), ("d2", -0.03), ("d3", -0.03)]
+    sin_freno, _ = pe.simular(dias, 10, 4, 6, taper_piso=1.0)
+    con_freno, info = pe.simular(dias, 10, 4, 6, taper_piso=0.25)
+    assert sin_freno == "roto_total"
+    assert con_freno != "roto_total" and info["peor_total"] < 0.06
+
+
 def test_sin_terminar_si_no_llega_ni_rompe():
     estado, _ = pe.simular([("d1", 0.02), ("d2", 0.02)], meta_pct=10, dia_pct=4, total_pct=6)
     assert estado == "sin_terminar"

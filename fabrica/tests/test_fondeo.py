@@ -37,6 +37,13 @@ def test_roto_por_perdida_total_trailing():
     assert e["estado"] == "roto" and e["margen_total"] < 0
 
 
+def test_taper_freno_gradual():
+    assert fondeo.taper(0.0, 0.06, 0.25) == 1.0           # en el pico: riesgo completo
+    assert fondeo.taper(0.03, 0.06, 0.25) == 0.5          # a mitad de camino al límite: mitad de riesgo
+    assert fondeo.taper(0.06, 0.06, 0.25) == 0.25         # en el límite: baja hasta el piso
+    assert fondeo.taper(0.03, 0.06, 1.0) == 1.0           # piso 1.0 = apagado
+
+
 def test_cerca_de_un_limite():
     # perdió 3.2 en el día de un límite de 4 -> queda poco margen (<= 25%)
     e = fondeo.estado(REGLAS, {"equity": 100.8, "pico": 104, "inicio_dia": 104})

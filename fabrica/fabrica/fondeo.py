@@ -11,6 +11,16 @@ from typing import Optional
 ICONO = {"aprobado": "🏆", "ok": "🟢", "cerca": "🟡", "roto": "🔴"}
 
 
+def taper(caida_frac: float, limite_frac: float, piso: float = 0.25) -> float:
+    """Freno gradual del drawdown: devuelve un factor (piso..1.0) para achicar el riesgo a medida que la
+    cuenta cae desde su máximo. En el pico (caída 0) = 1.0; cerca del límite baja hasta `piso`. Así el
+    sistema frena de a poco antes de reventar el examen, y le queda margen para recuperarse.
+    `piso`=1.0 lo apaga (factor siempre 1.0)."""
+    if limite_frac <= 0:
+        return 1.0
+    return max(piso, 1.0 - max(0.0, caida_frac) / limite_frac)
+
+
 def estado(cfg: dict, cuenta: dict) -> Optional[dict]:
     """Números del examen a partir de la cuenta. None si el modo examen está apagado."""
     f = cfg.get("fondeo") or {}
