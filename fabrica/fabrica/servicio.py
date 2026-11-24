@@ -333,6 +333,7 @@ class Servicio:
         tg.registrar("/bots", lambda a: L.texto_bots())
         tg.registrar("/racha", lambda a: L.texto_racha())
         tg.registrar("/examen", lambda a: L.texto_examen())
+        tg.registrar("/examen_prueba", self.cmd_examen_prueba)
         tg.registrar("/fabrica", lambda a: self.resumen_fabrica())
         tg.registrar("/informe", lambda a: L.texto_semana() + "\n\n" + self.resumen_fabrica() + "\n\n" + L.texto_preparacion())
         tg.registrar("/pausar", self.cmd_pausar)
@@ -362,6 +363,19 @@ class Servicio:
                 self.enviar(f"🔬 No pude hacer el diagnóstico: {e}")
         threading.Thread(target=tarea, name="diagnostico", daemon=True).start()
         return "🔬 Revisando las señales de cada bot. Tarda unos minutos; te mando el resultado."
+
+    def cmd_examen_prueba(self, a=""):
+        """¿Pasaría un examen de fondeo? Simula las reglas contra el historial del banco (en segundo plano)."""
+        from . import probar_examen
+
+        def tarea():
+            try:
+                self.enviar(probar_examen.texto(self.cfg))
+            except Exception as e:  # noqa: BLE001
+                log.exception("Falló la prueba del examen")
+                self.enviar(f"🎓 No pude correr la prueba del examen: {e}")
+        threading.Thread(target=tarea, name="examen_prueba", daemon=True).start()
+        return "🎓 Probando si el sistema pasaría el examen de fondeo (con el historial). Te mando el resultado."
 
     def cmd_ciclo(self, a=""):
         """Correr la fábrica ahora (no toca la plata: solo inventa y examina estrategias)."""
@@ -416,6 +430,7 @@ class Servicio:
 AYUDA = ("Comandos:\n/estado — prendido o apagado, plata, práctica o real\n/hoy — resultado de hoy\n"
          "/bots — titulares y suplentes\n/racha — ganadas/perdidas de cada titular y cuánto falta para 20 ops\n"
          "/examen — examen de fondeo: cuánto falta para la meta y margen hasta los límites (si está prendido)\n"
+         "/examen_prueba — ¿pasaría un examen de fondeo? (simula las reglas contra el historial)\n"
          "/fabrica — qué hizo la fábrica\n/informe — informe semanal\n"
          "/radar — qué pasa fuera del mercado (noticias, datos económicos)\n"
          "/noticias — qué hizo Bitcoin después de cada tipo de noticia (registro)\n"
