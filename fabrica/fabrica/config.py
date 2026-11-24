@@ -19,4 +19,10 @@ def cargar_config(ruta: str = None) -> dict:
     if not os.path.isabs(salida):
         salida = str(RAIZ / salida)
     cfg.setdefault("salida", {})["carpeta"] = salida
+    # Modo examen de fondeo por variable de entorno: así el servicio del desafío (Bybit) lo prende sin
+    # tocar el config.yaml compartido, y el servicio de Binance queda intacto.
+    if os.getenv("FONDEO_ACTIVO") is not None:
+        cfg.setdefault("fondeo", {})["activo"] = os.getenv("FONDEO_ACTIVO", "").strip().lower() in ("1", "true", "si", "sí", "yes")
+    if os.getenv("FONDEO_CAPITAL"):
+        cfg.setdefault("fondeo", {})["capital"] = float(os.getenv("FONDEO_CAPITAL"))
     return cfg

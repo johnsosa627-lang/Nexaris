@@ -171,7 +171,7 @@ fondeo:
   activo: false
   empresa: HyroTrader
   fase: "1 paso"
-  capital: 100            # tamaño de la cuenta del examen (100 para probar en demo de Bybit; 10000 en la real)
+  capital: 5000           # tamaño de la cuenta del desafío (One-Step de HyroTrader, 5.000 USDT). Se puede cambiar con FONDEO_CAPITAL.
   meta_pct: 10.0          # ganancia objetivo para aprobar
   perdida_dia_pct: 4.0    # pérdida máxima permitida en un día
   perdida_total_pct: 6.0  # pérdida máxima total
