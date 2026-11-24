@@ -80,6 +80,13 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
+## Estado al 24/11/2026 — GO-LIVE HECHO ✅ (el bot opera el desafío real)
+
+- **El bot del desafío está EN VIVO sobre Bybit** (EXCHANGE=bybit, FONDEO_ACTIVO=true, FABRICA_VIVO=/data/vivo-fondeo con estado fresco). `/examen` muestra **Cuenta: 5000 de 5000 USDT (+0.00%)**, meta 5.500, margen diario +200, margen total +300. Riesgo 0.3% con freno gradual. Binance quedó pausado (su rol de track-record ya cumplió).
+- **Arreglo clave (PR #93):** en modo examen, `liga.__init__` arranca `cuenta.equity/pico/inicio_dia` en `fondeo.capital` (5.000), no en `capital_inicial` (100). Si no, `capital()` devolvía min(5000,100)=100 y las ops salían microscópicas. Al redeployar hubo que **apagar el servicio (scale 0), borrar `/data/vivo-fondeo/estado_liga.json` con un contenedor auxiliar montando el volumen, y volver a prender (scale 1)** — porque al reiniciar normal el proceso viejo reescribe el estado en 100.
+- **PENDIENTE SEGURIDAD (importante):** rotar credenciales que se vieron en capturas durante el go-live: token de Telegram, claves Binance (demo y real), claves Bybit, y contraseña de Easypanel. Hacer cuando John pueda.
+- **Próximo:** seguir el desafío por Telegram (/examen, /estado). Cuando se apruebe (+10% sin romper límites) → cuenta fondeada y cobro 80-90% en USDT. Lo que cobre, John lo pasa a la otra cuenta.
+
 ## Estado al 24/11/2026 (desafío de fondeo COMPRADO + bot casi listo)
 
 - **John compró el desafío** de HyroTrader: **One-Step, 5.000 USDT, $69** (depósito reembolsable). ID `3iJNidpphDjrD8S4m37w0p`. Reglas: meta 10%, −4% diario, **−8% pérdida máxima** (más holgado que el 6% que validamos), drawdown **Swing** (por día, no intradía), 3 días mínimos, sin fecha límite. Permite bots por API (estrategia propia). Se conecta a **la cuenta DEMO de Bybit de John** por API; HyroTrader vigila.
