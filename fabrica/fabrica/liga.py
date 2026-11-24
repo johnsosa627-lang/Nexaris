@@ -64,7 +64,11 @@ class Liga:
         c = cfg["costos"]
         self.comision, self.slippage = c["comision_pct"] / 100, c["slippage_pct"] / 100
         self.slip_stop = c.get("slippage_stop_pct", 0.03) / 100
-        self.riesgo_frac = self.R["riesgo_por_operacion_pct"] / 100
+        # Riesgo por operación: más bajo en modo examen de fondeo (para no pasarse de los límites de drawdown).
+        f_fondeo = cfg.get("fondeo") or {}
+        riesgo_op = float(f_fondeo.get("riesgo_pct", self.R["riesgo_por_operacion_pct"])) if f_fondeo.get("activo") \
+            else float(self.R["riesgo_por_operacion_pct"])
+        self.riesgo_frac = riesgo_op / 100
         self.ruta = os.path.join(carpeta, "estado_liga.json")
         self.ruta_csv = os.path.join(carpeta, "operaciones.csv")
         self._avisos = {}

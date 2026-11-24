@@ -85,6 +85,12 @@ def serie_combinada(equipo):
     return [(f, porfecha[f]) for f in sorted(porfecha)]
 
 
+def mejor_nivel(filas):
+    """De la tabla (riesgo, resultado) elige el mejor: primero el que menos rompe, después el que más pasa.
+    Para un examen pago, NO romper (no perder la entrada) importa más que llegar rápido a la meta."""
+    return min(filas, key=lambda fr: (fr[1]["pct_rompe"], -fr[1]["pct_aprueba"]))
+
+
 def texto(cfg):
     from .examen import banco
     f = cfg.get("fondeo") or {}
@@ -93,6 +99,8 @@ def texto(cfg):
     total = float(f.get("perdida_total_pct", 6.0))
     empresa, fase = f.get("empresa", "HyroTrader"), f.get("fase", "1 paso")
     n = int((cfg.get("liga") or {}).get("max_titulares", 8))
+    base = float((cfg.get("riesgo") or {}).get("riesgo_por_operacion_pct", 1.0))
+    riesgo_cfg = float(f.get("riesgo_pct", 0.4))
 
     registros = [r for r in banco(cfg) if r.get("retornos_diarios")]
     if not registros:
@@ -103,22 +111,35 @@ def texto(cfg):
     if not dias:
         return "🎓 Prueba del examen: el equipo no tiene retornos diarios para simular."
 
-    res = simular_rolling(dias, meta, dia, total)
+    # Probar varios riesgos por operación (escala los retornos del backtest, que están al riesgo base).
+    niveles = sorted({base, 0.7, 0.5, riesgo_cfg, 0.3}, reverse=True)
+    filas = []
+    for rp in niveles:
+        factor = rp / base if base else 1.0
+        serie = [(fecha, ret * factor) for fecha, ret in dias]
+        filas.append((rp, simular_rolling(serie, meta, dia, total)))
+
     lineas = [f"🎓 PRUEBA DEL EXAMEN — {empresa} ({fase})",
-              f"Reglas: ganar {meta:.0f}%, sin perder {dia:.0f}% en un día ni {total:.0f}% total (trailing).",
-              f"Equipo: {len(equipo)} estrategias · {len(dias)} días de historial · {res['arranques']} arranques probados.",
+              f"Reglas: ganar {meta:.0f}%, sin perder {dia:.0f}%/día ni {total:.0f}% total (trailing).",
+              f"Equipo: {len(equipo)} estrategias · {len(dias)} días de historial.",
               "",
-              f"✅ Pasaría el examen en el {res['pct_aprueba']:.0f}% de los arranques.",
-              f"🔴 Lo rompería en el {res['pct_rompe']:.0f}%.",
-              f"Peor día: −{res['peor_dia_pct']:.2f}% (límite {dia:.0f}%) · "
-              f"peor caída total: −{res['peor_total_pct']:.2f}% (límite {total:.0f}%)."]
-    if res["peor_dia_pct"] >= dia or res["peor_total_pct"] >= total:
-        lineas.append("⚠️ En algún momento tocó un límite: hay que mejorar antes de pagar el examen.")
-    elif res["pct_aprueba"] >= 60:
-        lineas.append("👍 Viene sólido: pasaría la mayoría de las veces y nunca tocó un límite en el historial.")
+              "Riesgo/op → pasa / rompe (peor día / peor total):"]
+    for rp, res in filas:
+        lineas.append(f"• {rp:.1f}%  →  {res['pct_aprueba']:.0f}% pasa / {res['pct_rompe']:.0f}% rompe  "
+                      f"(−{res['peor_dia_pct']:.1f}% / −{res['peor_total_pct']:.1f}%)")
+
+    rp_mejor, res_mejor = mejor_nivel(filas)
+    lineas.append("")
+    if res_mejor["pct_rompe"] == 0 and res_mejor["pct_aprueba"] >= 50:
+        lineas.append(f"👍 Mejor: riesgo {rp_mejor:.1f}% → pasa {res_mejor['pct_aprueba']:.0f}% y NUNCA rompe. "
+                      f"{'Ya está puesto.' if abs(rp_mejor - riesgo_cfg) < 0.01 else f'Conviene poner riesgo {rp_mejor:.1f}% en el examen.'}")
+    elif res_mejor["pct_rompe"] <= 10:
+        lineas.append(f"🟡 Mejor opción: riesgo {rp_mejor:.1f}% (rompe solo {res_mejor['pct_rompe']:.0f}%). "
+                      "Mejoró, pero conviene afinar más antes de pagar.")
     else:
-        lineas.append("🟡 No rompe límites, pero tarda en llegar a la meta: conviene más historial antes de pagar.")
-    lineas.append("(Es una prueba con datos pasados; no garantiza el futuro. Sin tocar nada en vivo.)")
+        lineas.append("⚠️ Ni con riesgo bajo pasa seguro todavía: hay que mejorar las estrategias (más historial) "
+                      "antes de pagar el examen.")
+    lineas.append("(Prueba con datos pasados; no garantiza el futuro. Sin tocar nada en vivo.)")
     return "\n".join(lineas)
 
 

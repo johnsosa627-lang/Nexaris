@@ -179,6 +179,9 @@ fondeo:
   # Margen de seguridad: con el modo examen prendido, el sistema FRENA al llegar a este % del límite
   # (0.8 = frena al 80% del límite, antes de reventarlo). Solo afecta a la cuenta principal en modo examen.
   margen_freno: 0.8
+  # Riesgo por operación DENTRO del examen (más bajo que el 1% normal, para no pasarse de los límites de
+  # drawdown). Gana más lento pero no revienta. /examen_prueba muestra con qué riesgo conviene. Solo en modo examen.
+  riesgo_pct: 0.4
 
 # Riesgo por bot según lo demostrado en vivo. APAGADO: se activa solo si John lo decide (es subir el riesgo).
 # Con min_operaciones+ en vivo: ganancia comprobada (t >= t_minimo) -> riesgo x factor_bueno; promedio <= 0 ->
