@@ -256,7 +256,11 @@ class Liga:
         cr["auto"] = auto
 
     def capital(self) -> float:
-        return C.capital_base(float(self.R["capital_inicial"]), self.e["cuenta"]["equity"])
+        # En modo examen de fondeo el riesgo se calcula sobre el capital del desafío (ej. 5.000), no sobre
+        # capital_inicial ni el saldo real de la cuenta demo (que puede ser mayor).
+        f = self.cfg.get("fondeo") or {}
+        base = float(f.get("capital")) if f.get("activo") and f.get("capital") else float(self.R["capital_inicial"])
+        return C.capital_base(base, self.e["cuenta"]["equity"])
 
     def retornos_bt(self, bot) -> list:
         if bot.get("r_backtest"):
