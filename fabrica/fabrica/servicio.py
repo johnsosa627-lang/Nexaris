@@ -497,6 +497,8 @@ def main():
     # Real parcial: solo los bots elegidos en config (real_parcial.bots) operan en la cuenta REAL de Binance
     ejecutor_real = None
     clave_r, secreto_r = os.getenv("BINANCE_REAL_API_KEY", "").strip(), os.getenv("BINANCE_REAL_API_SECRET", "").strip()
+    if exchange != "binance":  # en el desafío de fondeo (Bybit) no se usa la cuenta real parcial de Binance
+        clave_r = secreto_r = ""
     if clave_r and secreto_r and modo != "real":
         if os.getenv("LIVE_TRADING", "").strip().lower() != "true":
             avisos.append("Hay claves de la cuenta REAL pero falta LIVE_TRADING=true en la configuración: "
