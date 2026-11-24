@@ -80,6 +80,14 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
+## Estado al 24/11/2026 (desafío de fondeo COMPRADO + bot casi listo)
+
+- **John compró el desafío** de HyroTrader: **One-Step, 5.000 USDT, $69** (depósito reembolsable). ID `3iJNidpphDjrD8S4m37w0p`. Reglas: meta 10%, −4% diario, **−8% pérdida máxima** (más holgado que el 6% que validamos), drawdown **Swing** (por día, no intradía), 3 días mínimos, sin fecha límite. Permite bots por API (estrategia propia). Se conecta a **la cuenta DEMO de Bybit de John** por API; HyroTrader vigila.
+- **Conexión hecha:** John creó una clave de Bybit demo nueva con permisos completos (Trading Unificado + Órdenes + Posiciones + Activos, sin IP) y la pegó en HyroTrader → "TODO CONFIGURADO". Las claves están guardadas por John (no en el repo).
+- **/examen_prueba (validación):** con riesgo **0.3%** + freno gradual del drawdown → **92% pasa / 0% rompe** (peor total −5.4%). Config del examen: riesgo 0.3%, freno gradual (taper_piso 0.25), capital 5.000.
+- **Prep de código lista (24/11):** `FONDEO_ACTIVO`/`FONDEO_CAPITAL` por variable de entorno (el bot del desafío prende el modo examen sin tocar el de Binance); en modo examen el riesgo se calcula sobre `fondeo.capital` (5.000), no sobre el saldo demo.
+- **PENDIENTE — arrancar el bot del desafío (go-live, hacer con calma):** levantar el bot apuntado a Bybit demo del desafío, SIN romper lo de Binance. Plan (vía variables de entorno de Easypanel en un servicio dedicado, o reapuntando con FABRICA_VIVO nuevo): `EXCHANGE=bybit`, `MODO=testnet`, `BINANCE_API_KEY`/`BINANCE_API_SECRET` = claves Bybit del desafío, `FONDEO_ACTIVO=true`, `FABRICA_VIVO` nuevo (estado fresco), sin claves BINANCE_REAL. Aplicar `actualizar.sh`, reiniciar, verificar con `/estado` y `/examen`. Antes: confirmar el saldo que muestra la cuenta demo (el bot lo lee solo al conectar).
+
 ## Estado al 22/11/2026 (decisión de fondeo + modo examen listo)
 
 - **Decisión de John (22/11):** entrar a una cuenta de fondeo de verdad después de la revisión del domingo próximo, aunque sea poco tiempo. John asume el riesgo ("si va mal es mi riesgo"). Renovó Hostinger por el mes. Rol de la IA: que si lo hacemos, sea lo más inteligente posible (ensayo en demo de Bybit antes de pagar, empezar por el examen más chico ~$89).
