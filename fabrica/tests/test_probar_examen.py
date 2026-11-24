@@ -36,6 +36,17 @@ def test_serie_combinada_suma_por_fecha():
     assert pe.serie_combinada(equipo) == [("2026-01-01", 0.03), ("2026-01-02", -0.01)]
 
 
+def test_mejor_nivel_prefiere_el_que_menos_rompe():
+    filas = [
+        (1.0, {"pct_aprueba": 46, "pct_rompe": 53}),
+        (0.5, {"pct_aprueba": 70, "pct_rompe": 5}),
+        (0.4, {"pct_aprueba": 65, "pct_rompe": 0}),
+        (0.3, {"pct_aprueba": 40, "pct_rompe": 0}),
+    ]
+    rp, res = pe.mejor_nivel(filas)
+    assert rp == 0.4 and res["pct_rompe"] == 0 and res["pct_aprueba"] == 65  # 0% rompe y el que más pasa entre esos
+
+
 def test_variedad_cubre_monedas_y_tf_distintas():
     reg = [{"simbolo": "A", "tf": "1h"}, {"simbolo": "A", "tf": "1h"}, {"simbolo": "B", "tf": "4h"}]
     equipo = pe._variedad(reg, 2)
