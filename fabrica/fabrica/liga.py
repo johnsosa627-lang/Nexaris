@@ -908,8 +908,13 @@ class Liga:
         c = self.e["cuenta"]
         bloqueo = self.puede_operar()
         estado = "🟢 Prendido y operando" if not bloqueo else f"🟡 {bloqueo}" if not self.e["apagado"] else f"🔴 {bloqueo}"
-        modo = {"papel": "simulado (sin Binance)", "testnet": "PRÁCTICA (Demo de Binance, plata de mentira)",
-                "real": "REAL (plata de verdad)"}[self.modo]
+        f_fondeo = self.cfg.get("fondeo") or {}
+        if self.modo == "testnet" and f_fondeo.get("activo"):
+            modo = (f"DESAFÍO DE FONDEO — {f_fondeo.get('empresa', '')} "
+                    f"(cuenta del examen de {float(f_fondeo.get('capital', 0)):.0f} USDT)")
+        else:
+            modo = {"papel": "simulado (sin Binance)", "testnet": "PRÁCTICA (demo, plata de mentira)",
+                    "real": "REAL (plata de verdad)"}[self.modo]
         abiertas = [b for b in self.bots("titular") if b["posicion"]]
         lineas = [f"📊 {estado}", f"Modo: {modo}",
                   f"Cuenta: {c['equity']:.2f} USDT (máximo {c['pico']:.2f}) · hoy {c['pnl_hoy']:+.2f} USDT",
