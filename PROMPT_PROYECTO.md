@@ -80,6 +80,12 @@ Solo los bots de `real_parcial.bots` (config.yaml) operan con plata real en la c
 - Diagnóstico desde la Consola web: `docker logs --tail 30 $(docker ps -q -f name=orangutanjh_fabrica) 2>&1` y `docker service ps orangutanjh_fabrica`.
 - Consejos: no usar el traductor de Chrome en Easypanel (rompe la página). En Easypanel los nombres van en minúsculas.
 
+## Estado al 26/11/2026 — equipo entrenado sembrado en el desafío ✅
+
+- **Problema detectado:** el resumen nocturno mostró **0 titulares** operando el desafío. Al arrancar con estado fresco (FABRICA_VIVO nuevo) el equipo quedó de cero y los suplentes tenían que volver a ganarse el puesto practicando (≥5 ops con R+ cada uno) — demasiado lento (semanas).
+- **Solución (PR #94, `fabrica/sembrar_fondeo.py`):** se copió el estado entrenado de Binance (`/data/vivo/estado_liga.json`, 8 titulares + 35 suplentes + su experiencia) al desafío (`/data/vivo-fondeo`), reseteando la cuenta a 5.000 y arrancando plano (posicion=None en todos, sin `cuenta_real` de Binance). Procedimiento: `docker service scale ...=0` → `curl raw sembrar_fondeo.py | docker run --rm -i --entrypoint python -v <vol>:/data <img> -` → `scale ...=1`. Resultado verificado: **titulares: 8 | suplentes: 35 | equity: 5000 | posiciones abiertas: 0**.
+- **Estado:** el desafío ya opera con el equipo que ya sabe. Seguir por /examen y /estado.
+
 ## Estado al 24/11/2026 — GO-LIVE HECHO ✅ (el bot opera el desafío real)
 
 - **El bot del desafío está EN VIVO sobre Bybit** (EXCHANGE=bybit, FONDEO_ACTIVO=true, FABRICA_VIVO=/data/vivo-fondeo con estado fresco). `/examen` muestra **Cuenta: 5000 de 5000 USDT (+0.00%)**, meta 5.500, margen diario +200, margen total +300. Riesgo 0.3% con freno gradual. Binance quedó pausado (su rol de track-record ya cumplió).
