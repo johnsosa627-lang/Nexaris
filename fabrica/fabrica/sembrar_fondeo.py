@@ -15,16 +15,21 @@ Rutas y capital por variables de entorno (con valores por defecto):
 """
 import json
 import os
+from datetime import datetime, timezone
 
 
 def sembrar(src: str, dst: str, capital: float) -> dict:
     e = json.load(open(src, encoding="utf-8"))
+    ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
     # Cuenta fresca en el capital del desafío
     e["cuenta"] = {"equity": capital, "pico": capital, "dia": "", "inicio_dia": capital,
                    "pnl_hoy": 0.0, "racha_hoy": 0, "freno_dia": ""}
-    # Arrancar plano: sin posiciones heredadas (no existen en el exchange del desafío)
+    # Arrancar plano: sin posiciones heredadas (no existen en el exchange del desafío).
+    # La fecha de inicio en vivo se resetea a AHORA: el desafío empieza hoy, no cuando el bot entró
+    # en la otra cuenta (si no, el chequeo de salud cree que lleva semanas y avisa falsas alarmas).
     for b in e.get("bots", {}).values():
         b["posicion"] = None
+        b["desde"] = ahora
     # Nada de plata real de otra cuenta en el desafío
     e.pop("cuenta_real", None)
     e["pausado"] = False
