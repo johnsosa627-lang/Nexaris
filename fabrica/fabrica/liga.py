@@ -770,12 +770,12 @@ class Liga:
             if ej is not None:
                 try:
                     entrada, cantidad = ej.abrir(bot["simbolo"], lado, cantidad)
-                except Exception as e:  # noqa: BLE001 - Binance rechazó la orden: no queda nada abierto
-                    self._senal_perdida(bot, lado, f"Binance rechazó la orden: {str(e)[:150]}")
-                    ayuda = (" Binance dice que no hay saldo suficiente en la billetera de Futuros: hay que pasar "
+                except Exception as e:  # noqa: BLE001 - el exchange rechazó la orden: no queda nada abierto
+                    self._senal_perdida(bot, lado, f"el exchange rechazó la orden: {str(e)[:150]}")
+                    ayuda = (" El exchange dice que no hay saldo suficiente en la billetera de Futuros: hay que pasar "
                              "USDT a Futuros." if "-2019" in str(e) or "insufficient" in str(e).lower() else "")
                     self._aviso_unico(f"orden-{type(e).__name__}-{str(e)[:40]}",
-                                      f"⚠️ {bot['id']} ({_moneda(bot['simbolo'])}) tuvo señal pero Binance rechazó la "
+                                      f"⚠️ {bot['id']} ({_moneda(bot['simbolo'])}) tuvo señal pero el exchange rechazó la "
                                       f"orden: {str(e)[:200]}.{ayuda}")
                     return
                 niv = niveles(bot["estrategia"]["salidas"], lado, entrada, atr, dist_rango)

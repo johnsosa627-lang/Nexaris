@@ -129,7 +129,15 @@ class EjecutorBinance:
             self.cliente.set_margin_mode("isolated", simbolo)
         except Exception as e:  # noqa: BLE001 - "No need to change margin type" es normal
             log.info("Margen aislado %s: %s", simbolo, e)
-        self.cliente.set_leverage(self.apalancamiento, simbolo)
+        try:
+            self.cliente.set_leverage(self.apalancamiento, simbolo)
+        except Exception as e:  # noqa: BLE001
+            # Bybit devuelve error 110043 "leverage not modified" si el apalancamiento ya estaba en ese
+            # valor: NO es una falla (si no, se perdía la señal). Cualquier otro error sí se reporta.
+            if "110043" in str(e) or "not modified" in str(e).lower():
+                log.info("Apalancamiento %s ya estaba en %sx", simbolo, self.apalancamiento)
+            else:
+                raise
         self._preparados.add(simbolo)
 
     def saldo(self) -> float:
