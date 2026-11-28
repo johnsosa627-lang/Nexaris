@@ -58,6 +58,27 @@ def test_ejecutor_abre_protege_y_cierra():
 def test_ejecutor_para_elige_clase():
     assert ejecutor_para("binance") is EjecutorBinance
     assert ejecutor_para("bybit") is EjecutorBybit
+
+
+def test_apalancamiento_ya_puesto_no_rompe_la_orden():
+    """Bybit devuelve error 110043 'leverage not modified' si el apalancamiento ya estaba en ese valor.
+    No es una falla: la orden igual se tiene que abrir (si no, se pierde la señal)."""
+    class CliLeverage(CcxtFalso):
+        def set_leverage(self, n, s):
+            raise Exception('bybit {"retCode":110043,"retMsg":"leverage not modified"}')
+    cli = CliLeverage()
+    precio, q = EjecutorBybit(cli, 3).abrir("XRP/USDT:USDT", -1, 30)
+    assert precio == 0.5 and q == 30
+    assert cli.ordenes[0] == ("market", "sell", 30, {})
+
+
+def test_otro_error_de_apalancamiento_si_se_reporta():
+    """Un error real de apalancamiento (no el benigno 110043) sí debe cortar la orden."""
+    class CliLeverage(CcxtFalso):
+        def set_leverage(self, n, s):
+            raise Exception("permiso denegado")
+    with pytest.raises(Exception, match="permiso denegado"):
+        EjecutorBybit(CliLeverage(), 3).abrir("XRP/USDT:USDT", -1, 30)
     assert ejecutor_para(None) is EjecutorBinance        # por defecto, binance
     assert ejecutor_para("otro") is EjecutorBinance      # desconocido -> binance
 
